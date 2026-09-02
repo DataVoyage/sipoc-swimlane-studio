@@ -4,6 +4,9 @@ Eine leichtgewichtige, **vollständig lokale** Web-App, um SIPOC-Prozesse zu erf
 und automatisch als **Swimlane-Diagramm** darzustellen — mit direktem Export nach
 **draw.io / diagrams.net XML** zum Import in Confluence.
 
+**Direkt ausprobieren, ohne irgendetwas zu installieren:**
+[datavoyage.github.io/sipoc-swimlane-studio](https://datavoyage.github.io/sipoc-swimlane-studio/)
+
 Keine Installation, kein Build, kein Server, keine Cloud: Die App besteht aus drei
 statischen Dateien (`index.html`, `styles.css`, `app.js`) ohne externe Abhängigkeiten
 und läuft per Doppelklick im Browser oder als statisch gehostete Seite (z. B. GitHub
