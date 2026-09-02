@@ -148,6 +148,25 @@ examples/     Beispielprojekt als .sipoc.json und bereits exportierte
 docs/         Vorgangskatalog und Screenshots
 ```
 
+## App als lokale Datei mitnehmen
+
+Über **Aktionen → „App als Datei herunterladen…“** erzeugt die App eine
+einzelne, in sich geschlossene HTML-Datei (rund 95 KB): Programm, Gestaltung
+und auf Wunsch der aktuelle Datenbestand sind darin eingebettet. Diese Datei
+lässt sich per Doppelklick ohne Internetverbindung öffnen, auf einem
+Netzlaufwerk ablegen, per E-Mail weitergeben oder als Confluence-Anhang
+hinterlegen — es wird nichts installiert und nichts nachgeladen.
+
+Im Dialog wird gewählt, was die Datei enthalten soll: die aktuellen Projekte,
+das Beispielprojekt oder einen leeren Start. Das ist nötig, weil die
+heruntergeladene Datei einen **eigenen, getrennten Datenspeicher** hat: Der
+Browser trennt die Daten von `https://…github.io/…` und die einer lokalen
+Datei strikt, sie sehen sich gegenseitig nicht. Wer online etwas erfasst hat
+und lokal weiterarbeiten will, wählt daher „Aktuelle Daten übernehmen“.
+
+Auch die heruntergeladene Datei kann sich selbst wieder weitergeben — der
+Download-Eintrag funktioniert dort ebenso, ohne Internetverbindung.
+
 ## Entwicklung & Tests
 
 Die App selbst benötigt kein `npm install`. Für Weiterentwicklung existiert
@@ -160,6 +179,15 @@ npm install
 npx playwright install --with-deps chromium   # einmalig
 npm test
 ```
+
+**Wichtig beim Ändern von `styles.css` oder `app.js`:** Die Versionsnummer in
+`index.html` (`<meta name="app-version">`, `styles.css?v=…`, `app.js?v=…`) und
+die Konstante `APP_VERSION` in `app.js` müssen gemeinsam erhöht werden.
+GitHub Pages liefert alle Dateien mit `cache-control: max-age=600` aus, sodass
+ein Browser sonst eine neue `index.html` mit einer alten `app.js` mischen kann
+— dann sind Bedienelemente sichtbar, tun beim Klick aber nichts. Der
+Versionsparameter erzwingt das Nachladen, und stimmen die beiden Werte doch
+einmal nicht überein, blendet die App oben einen Hinweis zum Neuladen ein.
 
 ## Lizenz
 

@@ -5,11 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SIPOC Swimlane Studio</title>
 <meta name="description" content="Leichtgewichtige Standalone-Web-App zum Erfassen von SIPOC-Prozessen und zur automatischen Darstellung als Swimlane-Diagramm mit draw.io-Export." />
+<!-- Version steuert das Cache-Busting der Assets und wird von app.js gegengeprüft.
+     Bei jeder Änderung an styles.css oder app.js mit erhöhen. -->
+<meta name="app-version" content="1.2.0" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="styles.css?v=1.2.0" />
 </head>
 <body>
 <div id="app">
+
+  <div id="versionWarning" class="version-warning hidden">
+    <span>Der Browser hat eine veraltete Programmdatei zwischengespeichert. Bitte die Seite neu laden (Strg+F5 bzw. Cmd+Shift+R), damit alle Funktionen arbeiten.</span>
+    <button id="versionReloadBtn" class="btn btn-small btn-primary" type="button">Neu laden</button>
+  </div>
 
   <header class="topbar">
     <div class="topbar-group topbar-left">
@@ -23,26 +31,82 @@
     <div class="topbar-group topbar-right">
       <span id="saveStatus" class="save-status">—</span>
       <div class="btn-divider" aria-hidden="true"></div>
-      <button id="linkFileBtn" class="btn btn-ghost" type="button">Datei verknüpfen…</button>
-      <button id="exportJsonBtn" class="btn btn-ghost" type="button">Exportieren</button>
-      <button id="importJsonBtn" class="btn btn-ghost" type="button">Importieren</button>
       <input type="file" id="importFileInput" accept="application/json" hidden />
-      <button id="duplicateProjectBtn" class="btn btn-icon" type="button" title="Projekt duplizieren">⧉</button>
-      <button id="deleteProjectBtn" class="btn btn-icon btn-danger" type="button" title="Projekt löschen">🗑</button>
-      <div class="btn-divider" aria-hidden="true"></div>
-      <button id="clearAllBtn" class="btn btn-ghost btn-danger" type="button" title="Alle Projekte löschen und mit einem leeren Projekt neu beginnen">Alle Daten löschen</button>
+      <div class="menu-anchor">
+        <button id="moreMenuBtn" class="btn btn-ghost" type="button" aria-haspopup="true" aria-expanded="false" title="Weitere Aktionen">Aktionen ⌄</button>
+        <div id="moreMenu" class="menu hidden" role="menu">
+
+          <div class="menu-section-title">Projekt</div>
+          <button id="exportJsonBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">⤓</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Projekt exportieren</span>
+              <span class="menu-item-hint">Aktives Projekt als .sipoc.json sichern</span>
+            </span>
+          </button>
+          <button id="importJsonBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">⤒</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Projekt importieren</span>
+              <span class="menu-item-hint">Projekt oder Datenbestand aus Datei laden</span>
+            </span>
+          </button>
+          <button id="duplicateProjectBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">⧉</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Projekt duplizieren</span>
+              <span class="menu-item-hint">Unabhängige Kopie des aktiven Projekts</span>
+            </span>
+          </button>
+          <button id="deleteProjectBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">🗑</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Projekt löschen</span>
+              <span class="menu-item-hint">Nur das aktive Projekt entfernen</span>
+            </span>
+          </button>
+
+          <div class="menu-separator" role="separator"></div>
+          <div class="menu-section-title">Lokal arbeiten</div>
+          <button id="downloadAppBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">📦</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">App als Datei herunterladen…</span>
+              <span class="menu-item-hint">Eine einzelne HTML-Datei, per Doppelklick offline startbar</span>
+            </span>
+          </button>
+          <button id="linkFileBtn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">🔗</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Datei verknüpfen…</span>
+              <span class="menu-item-hint">Änderungen automatisch in eine lokale Datei schreiben</span>
+            </span>
+          </button>
+
+          <div class="menu-separator" role="separator"></div>
+          <button id="clearAllBtn" class="menu-item menu-item-danger" type="button" role="menuitem">
+            <span class="menu-item-icon" aria-hidden="true">⚠︎</span>
+            <span class="menu-item-text">
+              <span class="menu-item-label">Alle Daten löschen</span>
+              <span class="menu-item-hint">Alle Projekte inklusive Beispiel entfernen und leer starten</span>
+            </span>
+          </button>
+
+        </div>
+      </div>
       <button id="themeToggleBtn" class="btn btn-icon" type="button" title="Darstellung umschalten">◐</button>
     </div>
   </header>
 
   <div class="body">
     <nav class="sidebar" id="sidebar">
-      <button class="nav-item" data-section="sipoc"><span class="nav-icon">📋</span>SIPOC-Tabelle</button>
-      <button class="nav-item" data-section="lanes"><span class="nav-icon">🏷️</span>Akteure</button>
-      <button class="nav-item" data-section="connections"><span class="nav-icon">🔗</span>Verbindungen</button>
-      <button class="nav-item" data-section="diagram"><span class="nav-icon">🧭</span>Swimlane-Diagramm</button>
+      <button class="nav-item" data-section="sipoc"><span class="nav-icon">📋</span><span>SIPOC-Tabelle</span></button>
+      <button class="nav-item" data-section="lanes"><span class="nav-icon">🏷️</span><span>Akteure</span></button>
+      <button class="nav-item" data-section="connections"><span class="nav-icon">🔗</span><span>Verbindungen</span></button>
+      <button class="nav-item" data-section="diagram"><span class="nav-icon">🧭</span><span>Swimlane-Diagramm</span></button>
       <div class="sidebar-footer">
-        <p>SIPOC Swimlane Studio läuft vollständig lokal im Browser. Es werden keine Daten an einen Server gesendet.</p>
+        <p>Läuft vollständig lokal im Browser. Es werden keine Daten an einen Server gesendet.</p>
+        <p class="sidebar-version">Version <span id="versionLabel">—</span></p>
       </div>
     </nav>
 
@@ -129,6 +193,6 @@
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=1.2.0"></script>
 </body>
 </html>

@@ -13,6 +13,8 @@
 import { chromium } from "playwright";
 import path from "path";
 import fs from "fs";
+import http from "http";
+import os from "os";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +34,17 @@ page.on("dialog", async (d) => {
   if (d.type() === "prompt") await d.accept("Leerprojekt-Test");
   else await d.accept();
 });
+
+// Seltener genutzte Aktionen liegen im Aktionsmenü der Kopfzeile.
+async function openMenu() {
+  await page.click("#moreMenuBtn");
+  await page.waitForTimeout(120);
+}
+async function menuClick(id) {
+  await openMenu();
+  await page.click("#" + id);
+  await page.waitForTimeout(180);
+}
 
 await page.goto(url);
 await page.waitForTimeout(300);
@@ -60,7 +73,7 @@ await page.fill("#projectNameInput", "Kreditorenrechnungsprüfung");
 await page.locator("#projectNameInput").dispatchEvent("change");
 
 const projCountBefore = await page.locator("#projectSelect option").count();
-await page.click("#duplicateProjectBtn");
+await menuClick("duplicateProjectBtn");
 await page.waitForTimeout(150);
 ok("1.5", (await page.locator("#projectSelect option").count()) === projCountBefore + 1, "Projekt duplizieren");
 
@@ -70,15 +83,15 @@ await page.waitForTimeout(150);
 ok("1.8", true, "Projekt wechseln ohne Fehler");
 
 const beforeDel = await page.locator("#projectSelect option").count();
-await page.click("#deleteProjectBtn");
+await menuClick("deleteProjectBtn");
 await page.waitForTimeout(200);
 ok("1.6", (await page.locator("#projectSelect option").count()) === beforeDel - 1, "Projekt löschen");
 
 while ((await page.locator("#projectSelect option").count()) > 1) {
-  await page.click("#deleteProjectBtn");
+  await menuClick("deleteProjectBtn");
   await page.waitForTimeout(150);
 }
-await page.click("#deleteProjectBtn");
+await menuClick("deleteProjectBtn");
 await page.waitForTimeout(200);
 ok("1.7", (await page.locator("#toast").textContent()).includes("letzte"), "Letztes Projekt nicht löschbar");
 ok("1.7b", (await page.locator("#projectSelect option").count()) === 1);
@@ -262,10 +275,11 @@ await page.setInputFiles("#importFileInput", "/tmp/sipoc-smoke-bad-import.json")
 await page.waitForTimeout(200);
 ok("6.7", (await page.locator("#toast").textContent()).includes("fehlgeschlagen"), "Ungültiger Import wird abgewiesen");
 
+await openMenu();
 const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("#exportJsonBtn")]);
 const jsonPath = await jsonDownload.path();
 const projCountBeforeImport = await page.locator("#projectSelect option").count();
-await page.click("#importJsonBtn");
+await menuClick("importJsonBtn");
 await page.setInputFiles("#importFileInput", jsonPath);
 await page.waitForTimeout(300);
 ok("6.4_6.5", (await page.locator("#projectSelect option").count()) === projCountBeforeImport + 1, "Export/Import-Rundlauf Einzelprojekt");
@@ -273,7 +287,7 @@ ok("6.4_6.5", (await page.locator("#projectSelect option").count()) === projCoun
 const multiStore = { projects: [{ id: "proj-smoke-extra", name: "Import-Test A", lanes: [], steps: [], connections: [] }], currentProjectId: "proj-smoke-extra" };
 fs.writeFileSync("/tmp/sipoc-smoke-multi-import.json", JSON.stringify(multiStore));
 const beforeMulti = await page.locator("#projectSelect option").count();
-await page.click("#importJsonBtn");
+await menuClick("importJsonBtn");
 await page.setInputFiles("#importFileInput", "/tmp/sipoc-smoke-multi-import.json");
 await page.waitForTimeout(300);
 ok("6.6", (await page.locator("#projectSelect option").count()) === beforeMulti + 1, "Import eines Gesamt-Datenbestands");
@@ -303,7 +317,7 @@ await page.click('.nav-item[data-section="sipoc"]');
 const projectsBeforeClear = await page.locator("#projectSelect option").count();
 ok("1.9_vorbedingung", projectsBeforeClear > 1, projectsBeforeClear + " Projekte vor dem Löschen");
 
-await page.click("#clearAllBtn");
+await menuClick("clearAllBtn");
 await page.waitForTimeout(250);
 const projectsAfterClear = await page.locator("#projectSelect option").count();
 ok("1.9a", projectsAfterClear === 1, "genau ein Projekt nach „Alle Daten löschen“");
@@ -315,6 +329,120 @@ ok("1.9c", (await page.locator("#laneList .list-row[data-lane-id]").count()) ===
 await page.reload();
 await page.waitForTimeout(300);
 ok("1.9d", (await page.locator("#projectSelect option").count()) === 1, "leerer Zustand übersteht Reload (Autosave)");
+
+// --- AP8 Auslieferung & Robustheit ------------------------------------------
+//
+// Diese Vorgänge brauchen die App über HTTP (wie auf GitHub Pages), weil sich
+// Dateien per file:// aus Sicherheitsgründen nicht nachladen lassen.
+
+const repoRoot = path.resolve(__dirname, "..");
+const server = http.createServer((req, res) => {
+  const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "") || "index.html";
+  const file = path.join(repoRoot, rel);
+  if (!file.startsWith(repoRoot) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    res.writeHead(404); res.end("nicht gefunden"); return;
+  }
+  const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json" };
+  res.writeHead(200, { "Content-Type": (types[path.extname(file)] || "application/octet-stream") + "; charset=utf-8" });
+  res.end(fs.readFileSync(file));
+});
+await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+const httpUrl = `http://127.0.0.1:${server.address().port}/index.html`;
+
+// 8.1 — App über HTTP als Standalone-Datei herunterladen
+const httpPage = await browser.newPage();
+const httpErrors = [];
+httpPage.on("pageerror", (e) => httpErrors.push("PAGEERROR: " + e.message));
+await httpPage.goto(httpUrl);
+await httpPage.waitForTimeout(400);
+await httpPage.click("#moreMenuBtn");
+await httpPage.waitForTimeout(150);
+await httpPage.click("#downloadAppBtn");
+await httpPage.waitForTimeout(250);
+ok("8.1a", (await httpPage.locator("#panel:not(.hidden)").count()) === 1, "Auswahl für den App-Download öffnet sich");
+const [appDownload] = await Promise.all([
+  httpPage.waitForEvent("download"),
+  httpPage.click("#panelForm button[type=submit]"),
+]);
+const standaloneDir = fs.mkdtempSync(path.join(os.tmpdir(), "sipoc-standalone-"));
+const standalonePath = path.join(standaloneDir, "sipoc-swimlane-studio.html");
+await appDownload.saveAs(standalonePath);
+const standaloneHtml = fs.readFileSync(standalonePath, "utf8");
+ok("8.1b", !/<link[^>]+rel="stylesheet"/.test(standaloneHtml) && standaloneHtml.includes("<style>"), "Gestaltung ist eingebettet");
+ok("8.1c", !/<script[^>]+src=/.test(standaloneHtml), "kein externes Skript mehr referenziert");
+ok("8.1d", standaloneHtml.includes('id="bundledData"'), "aktuelle Daten sind eingebettet");
+
+// 8.2 — heruntergeladene Datei läuft eigenständig per file://
+const standalonePage = await browser.newPage();
+const standaloneErrors = [];
+standalonePage.on("pageerror", (e) => standaloneErrors.push("PAGEERROR: " + e.message));
+standalonePage.on("console", (m) => { if (m.type() === "error") standaloneErrors.push("CONSOLE: " + m.text()); });
+await standalonePage.goto("file://" + standalonePath);
+await standalonePage.waitForTimeout(500);
+ok("8.2a", (await standalonePage.locator("#stepList .list-row[data-step-id]").count()) === 13, "übernommene Daten sind vorhanden");
+const sidebarBg = await standalonePage.evaluate(() => getComputedStyle(document.querySelector(".sidebar")).backgroundColor);
+ok("8.2b", sidebarBg !== "rgba(0, 0, 0, 0)" && sidebarBg !== "", "eingebettete Gestaltung greift (" + sidebarBg + ")");
+ok("8.2c", (await standalonePage.locator("#versionWarning:not(.hidden)").count()) === 0, "keine Versionswarnung in der gebündelten Datei");
+await standalonePage.click('.nav-item[data-section="diagram"]');
+await standalonePage.waitForTimeout(400);
+const [standaloneXml] = await Promise.all([
+  standalonePage.waitForEvent("download"),
+  standalonePage.click("#exportDrawioBtn"),
+]);
+const standaloneXmlText = fs.readFileSync(await standaloneXml.path(), "utf8");
+ok("8.2d", standaloneXmlText.includes("<mxfile"), "draw.io-Export funktioniert auch offline");
+ok("8.2e", standaloneErrors.length === 0, standaloneErrors.join(" | ") || "keine JS-Fehler offline");
+
+// 8.3 — aus der gebündelten Datei heraus erneut bündeln (ohne Nachladen)
+await standalonePage.click("#moreMenuBtn");
+await standalonePage.waitForTimeout(150);
+await standalonePage.click("#downloadAppBtn");
+await standalonePage.waitForTimeout(200);
+const [secondGen] = await Promise.all([
+  standalonePage.waitForEvent("download"),
+  standalonePage.click("#panelForm button[type=submit]"),
+]);
+const secondGenHtml = fs.readFileSync(await secondGen.path(), "utf8");
+ok("8.3", secondGenHtml.includes("<style>") && !/<script[^>]+src=/.test(secondGenHtml), "gebündelte Datei kann sich selbst weitergeben");
+
+// 8.4 — Versionskonflikt (veralteter Browser-Cache) wird sichtbar gemeldet
+const conflictPage = await browser.newPage();
+const appJsSource = fs.readFileSync(path.join(repoRoot, "app.js"), "utf8");
+await conflictPage.route("**/app.js*", (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: "text/javascript; charset=utf-8",
+    body: appJsSource.replace(/const APP_VERSION = "[^"]+"/, 'const APP_VERSION = "9.9.9-test"'),
+  })
+);
+await conflictPage.goto(httpUrl);
+await conflictPage.waitForTimeout(400);
+ok("8.4", (await conflictPage.locator("#versionWarning:not(.hidden)").count()) === 1, "Warnung bei nicht zusammenpassenden Dateiständen");
+
+// 8.5 — fehlendes Bedienelement legt die übrige App nicht lahm
+const robustPage = await browser.newPage();
+const indexSource = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+await robustPage.route(/\/index\.html(\?.*)?$/, (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    body: indexSource.replace('id="clearAllBtn"', 'id="clearAllBtn-fehlt-absichtlich"'),
+  })
+);
+await robustPage.goto(httpUrl);
+await robustPage.waitForTimeout(400);
+const robustSteps = await robustPage.locator("#stepList .list-row[data-step-id]").count();
+await robustPage.click("#themeToggleBtn");
+await robustPage.waitForTimeout(150);
+const robustTheme = await robustPage.evaluate(() => document.documentElement.getAttribute("data-theme"));
+ok("8.5", robustSteps === 13 && robustTheme !== "auto", "App bleibt bedienbar (" + robustSteps + " Schritte, Theme " + robustTheme + ")");
+
+await httpPage.close();
+await standalonePage.close();
+await conflictPage.close();
+await robustPage.close();
+server.close();
+fs.rmSync(standaloneDir, { recursive: true, force: true });
 
 // --- Auswertung -------------------------------------------------------------
 

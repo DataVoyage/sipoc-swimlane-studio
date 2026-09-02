@@ -13,6 +13,11 @@
   const IDB_NAME = "sipoc-swimlane-studio";
   const IDB_STORE = "handles";
 
+  // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
+  // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
+  // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
+  const APP_VERSION = "1.2.0";
+
   const STEP_TYPES = {
     start:    { label: "Start",         shape: "terminator", color: "var(--green)",  order: 0 },
     task:     { label: "Aufgabe",       shape: "rect",        color: "var(--accent)", order: 1 },
@@ -37,6 +42,19 @@
   };
 
   /* ------------------------------------------------------------ utils */
+
+  // Defensives Verdrahten: Fehlt ein Element (z. B. weil der Browser eine
+  // veraltete index.html zwischengespeichert hat), darf nicht der gesamte
+  // Rest der Verdrahtung ausfallen — deshalb wird nur gewarnt.
+  function on(id, event, handler) {
+    const el = document.getElementById(id);
+    if (!el) {
+      console.warn("[SIPOC Swimlane Studio] Bedienelement nicht gefunden: #" + id);
+      return null;
+    }
+    el.addEventListener(event, handler);
+    return el;
+  }
 
   function uid(prefix) {
     const rnd = (window.crypto && crypto.randomUUID)
@@ -267,7 +285,19 @@
           return parsed;
         }
       }
-    } catch (e) { /* corrupt storage -> fall through to seed */ }
+    } catch (e) { /* beschädigter Speicher -> weiter zu den Startdaten */ }
+
+    // In einer heruntergeladenen Standalone-Datei kann ein Datenbestand
+    // mitgeliefert sein. Er greift nur, solange dieser Browser noch keine
+    // eigenen Daten hat, und überschreibt daher nie vorhandene Arbeit.
+    const bundled = document.getElementById("bundledData");
+    if (bundled && bundled.textContent.trim()) {
+      try {
+        const parsed = JSON.parse(bundled.textContent);
+        if (parsed && Array.isArray(parsed.projects) && parsed.projects.length) return parsed;
+      } catch (e) { /* fehlerhafter Bundle-Inhalt -> Beispielprojekt */ }
+    }
+
     const seeded = seedProject();
     return { projects: [seeded], currentProjectId: seeded.id };
   }
@@ -775,6 +805,143 @@
     );
   }
 
+  /* ------------------------------------------- Standalone-Datei erzeugen */
+
+  // Baut aus der laufenden Seite eine einzelne, in sich geschlossene
+  // HTML-Datei: Stylesheet und Skript werden eingebettet, alle zur Laufzeit
+  // gefüllten Bereiche zurückgesetzt. Funktioniert sowohl auf einem Server
+  // (Assets werden nachgeladen) als auch aus einer bereits gebündelten Datei
+  // heraus (Assets stehen dann schon inline im Dokument).
+  async function buildStandaloneHtml(bundledStore) {
+    const root = document.documentElement.cloneNode(true);
+    resetDocumentTemplate(root);
+
+    const linkEl = root.querySelector('link[rel="stylesheet"]');
+    if (linkEl) {
+      const css = await fetchAssetText(linkEl.getAttribute("href"));
+      const style = document.createElement("style");
+      style.textContent = css.replace(/<\/style>/gi, "<\\/style>");
+      linkEl.replaceWith(style);
+    }
+
+    const scriptEl = root.querySelector("script[src]");
+    if (scriptEl) {
+      const js = await fetchAssetText(scriptEl.getAttribute("src"));
+      const inline = document.createElement("script");
+      inline.textContent = js.replace(/<\/script>/gi, "<\\/script>");
+      scriptEl.replaceWith(inline);
+    }
+
+    // Vorhandenen Datenbestand entfernen und ggf. neu setzen.
+    const oldData = root.querySelector("#bundledData");
+    if (oldData) oldData.remove();
+    if (bundledStore) {
+      const dataEl = document.createElement("script");
+      dataEl.type = "application/json";
+      dataEl.id = "bundledData";
+      // "<" maskieren, damit Nutzertexte das Dokument nicht aufbrechen können.
+      dataEl.textContent = JSON.stringify(bundledStore).replace(/</g, "\\u003c");
+      const body = root.querySelector("body");
+      body.insertBefore(dataEl, body.firstChild);
+    }
+
+    return "<!doctype html>\n" + root.outerHTML + "\n";
+  }
+
+  async function fetchAssetText(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status + " für " + url);
+    return res.text();
+  }
+
+  // Setzt alles zurück, was erst zur Laufzeit entsteht, damit die erzeugte
+  // Datei so startet wie eine frische Auslieferung.
+  function resetDocumentTemplate(root) {
+    root.setAttribute("data-theme", "auto");
+    ["stepList", "laneList", "connectionList", "diagramCanvasWrapper", "panelForm", "projectSelect", "stepFilterLane"]
+      .forEach((id) => { const el = root.querySelector("#" + id); if (el) el.innerHTML = ""; });
+
+    const wrapper = root.querySelector("#diagramCanvasWrapper");
+    if (wrapper) wrapper.removeAttribute("style");
+
+    const nameInput = root.querySelector("#projectNameInput");
+    if (nameInput) nameInput.removeAttribute("value");
+
+    const status = root.querySelector("#saveStatus");
+    if (status) status.textContent = "—";
+
+    const zoom = root.querySelector("#zoomLabel");
+    if (zoom) zoom.textContent = "100%";
+
+    const versionLabel = root.querySelector("#versionLabel");
+    if (versionLabel) versionLabel.textContent = "—";
+
+    const toast = root.querySelector("#toast");
+    if (toast) { toast.textContent = ""; toast.className = "toast hidden"; toast.removeAttribute("style"); }
+
+    const panel = root.querySelector("#panel");
+    if (panel) { panel.className = "panel hidden"; panel.setAttribute("aria-hidden", "true"); }
+
+    const overlay = root.querySelector("#overlay");
+    if (overlay) overlay.className = "overlay hidden";
+
+    const menu = root.querySelector("#moreMenu");
+    if (menu) menu.className = "menu hidden";
+    const menuBtn = root.querySelector("#moreMenuBtn");
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+
+    const warning = root.querySelector("#versionWarning");
+    if (warning) warning.className = "version-warning hidden";
+
+    const diagramEmpty = root.querySelector("#diagramEmpty");
+    if (diagramEmpty) diagramEmpty.className = "empty-state hidden";
+
+    root.querySelectorAll(".nav-item.active").forEach((el) => el.classList.remove("active"));
+    root.querySelectorAll(".section.active").forEach((el) => el.classList.remove("active"));
+  }
+
+  function openDownloadAppForm() {
+    const projectCount = store.projects.length;
+    const stepCount = store.projects.reduce((n, p) => n + p.steps.length, 0);
+    const fields =
+      `<p class="field-note">Erzeugt eine einzelne HTML-Datei, die alles enthält: Programm, Gestaltung und optional deine Daten.
+        Die Datei lässt sich per Doppelklick ohne Internetverbindung öffnen, auf einem Netzlaufwerk ablegen oder als
+        Confluence-Anhang weitergeben.</p>` +
+      fieldSelect("content", "Inhalt der Datei", [
+        { value: "current", label: `Aktuelle Daten übernehmen (${projectCount} Projekt(e), ${stepCount} Schritt(e))` },
+        { value: "example", label: "Mit dem Beispielprojekt starten" },
+        { value: "empty", label: "Leer starten" },
+      ], "current", { required: true }) +
+      `<p class="field-note">Hinweis: Die heruntergeladene Datei hat einen eigenen, getrennten Datenspeicher — sie greift
+        nicht auf die Daten dieser Browser-Adresse zu. Ohne Übernahme startet sie also unabhängig von deinem jetzigen Stand.</p>`;
+
+    openPanel("App als Datei herunterladen", fields, {
+      submitLabel: "Herunterladen",
+      onSubmit: (data) => {
+        downloadStandaloneApp(data.content);
+      },
+    });
+  }
+
+  async function downloadStandaloneApp(mode) {
+    let bundledStore = null;
+    if (mode === "current") {
+      bundledStore = JSON.parse(JSON.stringify(store));
+    } else if (mode === "empty") {
+      const fresh = blankProject("Neuer SIPOC-Prozess");
+      bundledStore = { projects: [fresh], currentProjectId: fresh.id };
+    } // "example" -> kein Bundle, die App legt beim Start ihr Beispielprojekt an
+
+    showToast("Datei wird zusammengestellt…");
+    try {
+      const html = await buildStandaloneHtml(bundledStore);
+      downloadFile("sipoc-swimlane-studio.html", html, "text/html;charset=utf-8");
+      showToast("App heruntergeladen — Datei per Doppelklick im Browser öffnen.");
+    } catch (e) {
+      showToast("App konnte nicht gebündelt werden: " + e.message, "warn");
+    }
+  }
+
   /* --------------------------------------------------------------- Toast */
 
   let toastTimer = null;
@@ -1141,31 +1308,55 @@
       btn.addEventListener("click", () => showSection(btn.dataset.section));
     });
 
-    document.getElementById("newLaneBtn").addEventListener("click", () => openLaneForm(null));
-    document.getElementById("newStepBtn").addEventListener("click", () => openStepForm(null));
-    document.getElementById("newConnectionBtn").addEventListener("click", () => openConnectionForm(null));
+    on("newLaneBtn", "click", () => openLaneForm(null));
+    on("newStepBtn", "click", () => openStepForm(null));
+    on("newConnectionBtn", "click", () => openConnectionForm(null));
 
-    document.getElementById("stepFilterLane").addEventListener("change", renderSteps);
+    on("stepFilterLane", "change", renderSteps);
 
-    document.getElementById("overlay").addEventListener("click", closePanel);
-    document.getElementById("panelClose").addEventListener("click", closePanel);
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closePanel();
+    on("overlay", "click", closePanel);
+    on("panelClose", "click", closePanel);
+
+    // Aktionsmenü
+    const menu = document.getElementById("moreMenu");
+    const menuBtn = document.getElementById("moreMenuBtn");
+    function setMenuOpen(open) {
+      if (!menu || !menuBtn) return;
+      menu.classList.toggle("hidden", !open);
+      menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    on("moreMenuBtn", "click", (e) => {
+      e.stopPropagation();
+      setMenuOpen(menu && menu.classList.contains("hidden"));
+    });
+    if (menu) {
+      // Capture-Phase: Das Menü schließt, bevor die Aktion des Eintrags läuft
+      // (sonst bliebe es während eines Bestätigungsdialogs offen stehen).
+      menu.addEventListener("click", (e) => {
+        if (e.target.closest(".menu-item")) setMenuOpen(false);
+      }, true);
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".menu-anchor")) setMenuOpen(false);
     });
 
-    document.getElementById("projectSelect").addEventListener("change", (e) => {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { closePanel(); setMenuOpen(false); }
+    });
+
+    on("projectSelect", "change", (e) => {
       store.currentProjectId = e.target.value;
       touch();
       renderAll();
     });
 
-    document.getElementById("projectNameInput").addEventListener("change", (e) => {
+    on("projectNameInput", "change", (e) => {
       getProject().name = e.target.value.trim() || "Unbenanntes Projekt";
       touch();
       renderProjectPicker();
     });
 
-    document.getElementById("newProjectBtn").addEventListener("click", () => {
+    on("newProjectBtn", "click", () => {
       const name = prompt("Name des neuen SIPOC-Prozesses:", "Neuer Prozess");
       if (name === null) return;
       const proj = blankProject(name.trim() || "Neuer Prozess");
@@ -1176,7 +1367,7 @@
       showToast("Projekt angelegt.");
     });
 
-    document.getElementById("duplicateProjectBtn").addEventListener("click", () => {
+    on("duplicateProjectBtn", "click", () => {
       const p = JSON.parse(JSON.stringify(getProject()));
       p.id = uid("proj");
       p.name = p.name + " (Kopie)";
@@ -1193,7 +1384,7 @@
       showToast("Projekt dupliziert.");
     });
 
-    document.getElementById("deleteProjectBtn").addEventListener("click", () => {
+    on("deleteProjectBtn", "click", () => {
       if (store.projects.length <= 1) {
         showToast("Das letzte Projekt kann nicht gelöscht werden.", "warn");
         return;
@@ -1207,7 +1398,7 @@
       showToast("Projekt gelöscht.");
     });
 
-    document.getElementById("clearAllBtn").addEventListener("click", () => {
+    on("clearAllBtn", "click", () => {
       const totalSteps = store.projects.reduce((n, p) => n + p.steps.length, 0);
       const msg =
         "Wirklich ALLE " + store.projects.length + " Projekt(e) mit zusammen " + totalSteps +
@@ -1223,17 +1414,17 @@
       showToast("Alle Daten gelöscht — leeres Projekt angelegt.");
     });
 
-    document.getElementById("exportJsonBtn").addEventListener("click", () => {
+    on("exportJsonBtn", "click", () => {
       const p = getProject();
       const filename = (p.name || "sipoc-projekt").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + ".sipoc.json";
       downloadFile(filename, JSON.stringify(p, null, 2), "application/json");
       showToast("Projekt als JSON exportiert.");
     });
 
-    document.getElementById("importJsonBtn").addEventListener("click", () => {
+    on("importJsonBtn", "click", () => {
       document.getElementById("importFileInput").click();
     });
-    document.getElementById("importFileInput").addEventListener("change", async (e) => {
+    on("importFileInput", "change", async (e) => {
       const file = e.target.files[0];
       e.target.value = "";
       if (!file) return;
@@ -1260,9 +1451,11 @@
       }
     });
 
-    document.getElementById("linkFileBtn").addEventListener("click", linkFile);
+    on("linkFileBtn", "click", linkFile);
+    on("downloadAppBtn", "click", openDownloadAppForm);
+    on("versionReloadBtn", "click", () => location.reload());
 
-    document.getElementById("themeToggleBtn").addEventListener("click", () => {
+    on("themeToggleBtn", "click", () => {
       const order = ["auto", "light", "dark"];
       ui.theme = order[(order.indexOf(ui.theme) + 1) % order.length];
       localStorage.setItem("sipocSwimlaneStudio.theme", ui.theme);
@@ -1270,11 +1463,11 @@
       showToast("Darstellung: " + ({ auto: "System", light: "Hell", dark: "Dunkel" }[ui.theme]));
     });
 
-    document.getElementById("zoomInBtn").addEventListener("click", () => { ui.zoom = Math.min(2.5, ui.zoom + 0.1); applyZoom(); });
-    document.getElementById("zoomOutBtn").addEventListener("click", () => { ui.zoom = Math.max(0.15, ui.zoom - 0.1); applyZoom(); });
-    document.getElementById("zoomResetBtn").addEventListener("click", fitZoom);
+    on("zoomInBtn", "click", () => { ui.zoom = Math.min(2.5, ui.zoom + 0.1); applyZoom(); });
+    on("zoomOutBtn", "click", () => { ui.zoom = Math.max(0.15, ui.zoom - 0.1); applyZoom(); });
+    on("zoomResetBtn", "click", fitZoom);
 
-    document.getElementById("exportDrawioBtn").addEventListener("click", () => {
+    on("exportDrawioBtn", "click", () => {
       const p = getProject();
       if (!p.steps.length) { showToast("Kein Diagramm zum Exportieren vorhanden.", "warn"); return; }
       const layout = currentLayout || computeLayout(p);
@@ -1284,7 +1477,7 @@
       showToast("draw.io-XML exportiert — in Confluence per „Diagramme (draw.io)“ → Datei importieren einfügen.");
     });
 
-    document.getElementById("copyXmlBtn").addEventListener("click", async () => {
+    on("copyXmlBtn", "click", async () => {
       const p = getProject();
       if (!p.steps.length) { showToast("Kein Diagramm vorhanden.", "warn"); return; }
       const layout = currentLayout || computeLayout(p);
@@ -1304,10 +1497,29 @@
     document.documentElement.setAttribute("data-theme", ui.theme);
   }
 
+  // Erkennt den Fall, dass Seitengerüst und Programmdatei aus unterschiedlichen
+  // Ständen stammen (typisch: eine der beiden Dateien liegt noch im
+  // Browser-Cache). Ohne diesen Hinweis fehlen Bedienelemente oder tun beim
+  // Klick stillschweigend nichts.
+  function checkVersion() {
+    const label = document.getElementById("versionLabel");
+    if (label) label.textContent = APP_VERSION;
+    const meta = document.querySelector('meta[name="app-version"]');
+    const pageVersion = meta ? meta.getAttribute("content") : null;
+    if (pageVersion === APP_VERSION) return;
+    console.warn(
+      "[SIPOC Swimlane Studio] Versionskonflikt: Seite meldet " +
+      (pageVersion || "keine Version") + ", Programmdatei ist " + APP_VERSION + "."
+    );
+    const warning = document.getElementById("versionWarning");
+    if (warning) warning.classList.remove("hidden");
+  }
+
   /* -------------------------------------------------------------- Init */
 
   function init() {
     applyTheme();
+    checkVersion();
     store = loadStore();
     if (!store.projects.some((p) => p.id === store.currentProjectId)) {
       store.currentProjectId = store.projects[0].id;

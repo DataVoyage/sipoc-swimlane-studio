@@ -7,10 +7,12 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (02.09.2026):** 41 der 46 Vorgänge sind über
+**Stand der Prüfung (02.09.2026):** 47 der 53 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
-gegen die ausgelieferte `index.html` (Playwright/Chromium, ohne Server,
-`npm test`). Die übrigen 5 Vorgänge sind laut Quellcode umgesetzt, aber noch
+(Playwright/Chromium, `npm test`) — überwiegend gegen die ausgelieferte
+`index.html` per `file://`, die Vorgänge aus AP8 zusätzlich über einen
+kurzlebigen lokalen HTTP-Server, weil sie das Nachladen von Dateien
+voraussetzen wie im Hosting-Betrieb. Die übrigen 5 Vorgänge sind laut Quellcode umgesetzt, aber noch
 nicht automatisiert geprüft (v. a. Interaktion mit der File System Access API
 und dem tatsächlichen draw.io-Import, die sich in einer Kopfloser-Browser-
 Umgebung nur eingeschränkt bzw. gar nicht automatisieren lassen). Sie sind
@@ -104,6 +106,18 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 |---|---|---|---|
 | 7.1 | Darstellung zwischen System/Hell/Dunkel umschalten | Farbschema wechselt sofort in allen Bereichen (Listen, Panel, Diagramm) und bleibt nach Neuladen erhalten | ✅ |
 | 7.2 | Fenster verkleinern (schmaler Viewport) | Seitenleiste reduziert sich auf Icons, Inhalt bleibt bedienbar | ✅ |
+| 7.3 | Aktionsmenü in der Kopfzeile öffnen, Eintrag wählen, per Klick daneben oder Escape schließen | Menü öffnet und schließt sauber; der gewählte Eintrag führt seine Aktion aus, das Menü schließt vorher | ✅ |
+
+## AP8 — Auslieferung & Robustheit
+
+| # | Vorgang | Erwartetes Ergebnis | Geprüft |
+|---|---|---|---|
+| 8.1 | „App als Datei herunterladen…“ mit „Aktuelle Daten übernehmen“ | Einzelne HTML-Datei wird erzeugt, in der Gestaltung und Programm eingebettet sind und die keine externen Dateien mehr referenziert; der aktuelle Datenbestand liegt eingebettet bei | ✅ |
+| 8.2 | Download mit „Beispielprojekt“ bzw. „Leer starten“ | Datei enthält statt der aktuellen Daten das Beispielprojekt bzw. ein einzelnes leeres Projekt | ◻︎ |
+| 8.3 | Heruntergeladene Datei per Doppelklick (`file://`) öffnen | App startet ohne Internetverbindung vollständig: Gestaltung greift, übernommene Daten sind vorhanden, Diagramm und draw.io-Export funktionieren, keine JavaScript-Fehler | ✅ |
+| 8.4 | Aus der heruntergeladenen Datei heraus erneut „App als Datei herunterladen“ | Erzeugt wieder eine vollständige, eigenständige Datei — auch ohne Nachladen von Dateien | ✅ |
+| 8.5 | Seitengerüst und Programmdatei stammen aus verschiedenen Ständen (veralteter Browser-Cache) | Hinweisleiste „veraltete Programmdatei … bitte neu laden“ erscheint, statt dass Schaltflächen stillschweigend wirkungslos bleiben | ✅ |
+| 8.6 | Ein erwartetes Bedienelement fehlt im Seitengerüst | Die übrige Anwendung bleibt vollständig bedienbar; es erscheint lediglich eine Warnung in der Browser-Konsole | ✅ |
 
 ## Smoke-Test ausführen
 
