@@ -294,6 +294,28 @@ await page.waitForTimeout(150);
 const sidebarWidth = await page.evaluate(() => document.querySelector(".sidebar").getBoundingClientRect().width);
 ok("7.2", sidebarWidth < 100, "Seitenleiste reagiert auf schmalen Viewport");
 
+// --- AP1 (Fortsetzung) — Alle Daten löschen --------------------------------
+
+// Ausgangslage herstellen: mehrere Projekte mit Inhalt vorhanden (aus den
+// vorherigen Abschnitten: mind. das befüllte Beispielprojekt sowie die
+// Import-Testprojekte).
+await page.click('.nav-item[data-section="sipoc"]');
+const projectsBeforeClear = await page.locator("#projectSelect option").count();
+ok("1.9_vorbedingung", projectsBeforeClear > 1, projectsBeforeClear + " Projekte vor dem Löschen");
+
+await page.click("#clearAllBtn");
+await page.waitForTimeout(250);
+const projectsAfterClear = await page.locator("#projectSelect option").count();
+ok("1.9a", projectsAfterClear === 1, "genau ein Projekt nach „Alle Daten löschen“");
+ok("1.9b", (await page.locator("#stepList .list-row[data-step-id]").count()) === 0, "keine Prozessschritte mehr vorhanden");
+
+await page.click('.nav-item[data-section="lanes"]');
+ok("1.9c", (await page.locator("#laneList .list-row[data-lane-id]").count()) === 0, "keine Akteure mehr vorhanden");
+
+await page.reload();
+await page.waitForTimeout(300);
+ok("1.9d", (await page.locator("#projectSelect option").count()) === 1, "leerer Zustand übersteht Reload (Autosave)");
+
 // --- Auswertung -------------------------------------------------------------
 
 console.log("\n===== Vorgangskatalog-Smoke-Test =====");

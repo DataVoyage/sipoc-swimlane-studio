@@ -129,6 +129,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 8px;
   gap: 12px;
   padding: 10px 16px;
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
@@ -138,8 +140,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   z-index: 20;
   flex-shrink: 0;
 }
-.topbar-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.topbar-center { flex: 1; justify-content: center; }
+.topbar-group { display: flex; align-items: center; gap: 8px; min-width: 0; flex-shrink: 0; }
+.topbar-center { flex: 1 1 160px; min-width: 140px; justify-content: center; }
 .app-mark { font-size: 20px; margin-right: 2px; }
 
 .project-select, .project-name-input {
@@ -155,8 +157,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   text-align: center;
   font-weight: 600;
   font-size: 15px;
-  width: 340px;
-  max-width: 46vw;
+  width: 100%;
+  max-width: 420px;
+  min-width: 0;
+  box-sizing: border-box;
   background: transparent;
 }
 .project-name-input:hover { background: var(--bg-subtle); }

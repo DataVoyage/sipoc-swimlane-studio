@@ -86,7 +86,22 @@ Es gibt drei Ebenen, kombinierbar:
    Netzlaufwerk teilen.
 
 Es werden zu keinem Zeitpunkt Daten an einen Server gesendet — die App hat
-keine Backend-Komponente.
+keine Backend-Komponente. Das gilt auch für die per GitHub Pages gehostete
+Instanz: Sie liefert ausschließlich die statischen Dateien aus; jede Person,
+die sie öffnet, hat ihren eigenen, unabhängigen Datenstand im eigenen
+Browser bzw. in ihrer eigenen verknüpften Datei.
+
+### Vom Beispielprojekt zum echten Prozess
+
+Die App startet mit einem vollständig ausgefüllten Beispielprojekt, damit
+sich alle Ansichten sofort ausprobieren lassen. Über **„Alle Daten
+löschen“** im Kopfbereich lassen sich sämtliche Projekte inklusive Beispiel
+in einem Schritt entfernen — danach steht ein einzelnes leeres Projekt
+bereit, um direkt mit einem echten SIPOC-Prozess zu beginnen. Die Aktion
+fragt vorher eine Bestätigung ab, ist aber nicht widerrufbar; sie wirkt auf
+den Autosave in diesem Browser sowie auf eine ggf. verknüpfte lokale Datei.
+Wer nur das Beispielprojekt loswerden, andere Projekte aber behalten will,
+nutzt stattdessen „Projekt löschen“ (🗑) für das jeweils aktive Projekt.
 
 ## draw.io-XML in Confluence importieren
 

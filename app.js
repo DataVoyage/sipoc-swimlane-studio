@@ -1207,6 +1207,22 @@
       showToast("Projekt gelöscht.");
     });
 
+    document.getElementById("clearAllBtn").addEventListener("click", () => {
+      const totalSteps = store.projects.reduce((n, p) => n + p.steps.length, 0);
+      const msg =
+        "Wirklich ALLE " + store.projects.length + " Projekt(e) mit zusammen " + totalSteps +
+        " Prozessschritt(en) unwiderruflich löschen (z. B. um das mitgelieferte Demoprojekt " +
+        "zu entfernen und mit einem leeren Projekt zu starten)?\n\n" +
+        "Betrifft die automatische Speicherung in diesem Browser sowie eine ggf. verknüpfte Datei.";
+      if (!confirm(msg)) return;
+      const fresh = blankProject("Neuer SIPOC-Prozess");
+      store = { projects: [fresh], currentProjectId: fresh.id };
+      ui.stepFilterLane = "";
+      touch();
+      renderAll();
+      showToast("Alle Daten gelöscht — leeres Projekt angelegt.");
+    });
+
     document.getElementById("exportJsonBtn").addEventListener("click", () => {
       const p = getProject();
       const filename = (p.name || "sipoc-projekt").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + ".sipoc.json";

@@ -7,7 +7,7 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (02.09.2026):** 40 der 45 Vorgänge sind über
+**Stand der Prüfung (02.09.2026):** 41 der 46 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
 gegen die ausgelieferte `index.html` (Playwright/Chromium, ohne Server,
 `npm test`). Die übrigen 5 Vorgänge sind laut Quellcode umgesetzt, aber noch
@@ -30,6 +30,7 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 | 1.6 | Projekt löschen (mehrere vorhanden) | Nach Bestätigung wird das Projekt entfernt, ein verbleibendes Projekt wird aktiv | ✅ |
 | 1.7 | Letztes verbleibendes Projekt löschen | Löschen wird verhindert, Hinweis „kann nicht gelöscht werden“ erscheint | ✅ |
 | 1.8 | Zwischen mehreren Projekten wechseln | Ausgewähltes Projekt wird in allen Ansichten (SIPOC, Akteure, Verbindungen, Diagramm) angezeigt | ✅ |
+| 1.9 | „Alle Daten löschen“ (z. B. um das mitgelieferte Beispielprojekt zu entfernen und real zu starten) | Nach Bestätigung werden **alle** Projekte entfernt und durch ein einzelnes leeres Projekt ersetzt; Autosave und eine ggf. verknüpfte Datei übernehmen den leeren Stand, der Reload bestätigt | ✅ |
 
 ## AP2 — Akteure (Swimlanes)
 
