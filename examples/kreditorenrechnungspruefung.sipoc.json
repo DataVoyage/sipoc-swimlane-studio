@@ -1,0 +1,274 @@
+{
+  "id": "proj-5b8af16e",
+  "name": "Kreditorenrechnungsprüfung",
+  "updatedAt": 1788383011745,
+  "lanes": [
+    {
+      "id": "lane-c9b23774",
+      "name": "Lieferant",
+      "description": "Externer Rechnungssteller (Wesselmann Baustoffhandel GmbH)",
+      "color": "#0a84ff"
+    },
+    {
+      "id": "lane-cbd0fb4d",
+      "name": "Rechnungseingang",
+      "description": "Zentrale Poststelle / E-Invoicing-Eingang",
+      "color": "#34c759"
+    },
+    {
+      "id": "lane-232b62e5",
+      "name": "Kreditorenbuchhaltung",
+      "description": "Team Kreditoren der Finanzbuchhaltung",
+      "color": "#ff9500"
+    },
+    {
+      "id": "lane-a1f8b3e8",
+      "name": "Fachbereich",
+      "description": "Projektleitung / Kostenstellenverantwortliche",
+      "color": "#af52de"
+    },
+    {
+      "id": "lane-0c86f186",
+      "name": "Geschäftsführung",
+      "description": "Freigabeinstanz für Rechnungen über 5.000 €",
+      "color": "#30b0c7"
+    },
+    {
+      "id": "lane-d511b239",
+      "name": "Finanzsystem",
+      "description": "Zahlungsverkehr im ERP (automatisierter Zahllauf)",
+      "color": "#ff375f"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-e3b27909",
+      "lane": "lane-c9b23774",
+      "type": "start",
+      "name": "Rechnung erstellen und versenden",
+      "supplier": "Wesselmann Baustoffhandel GmbH",
+      "input": "Leistungsnachweis, Aufmaß, Lieferschein",
+      "output": "Rechnung (PDF per E-Mail bzw. Papierpost)",
+      "customer": "Rechnungseingang",
+      "description": "Der Lieferant stellt nach erbrachter Leistung eine Rechnung mit Bezug auf die Bestellnummer aus."
+    },
+    {
+      "id": "step-357ca8f8",
+      "lane": "lane-cbd0fb4d",
+      "type": "task",
+      "name": "Rechnung erfassen und digitalisieren",
+      "supplier": "Wesselmann Baustoffhandel GmbH",
+      "input": "Eingehende Papier- oder PDF-Rechnung",
+      "output": "Digitalisierte Rechnung mit Eingangsstempel und Barcode",
+      "customer": "Kreditorenbuchhaltung",
+      "description": "Posteingang scannt Papierrechnungen bzw. übernimmt E-Rechnungen automatisiert in die Workflow-Ablage."
+    },
+    {
+      "id": "step-642032e7",
+      "lane": "lane-232b62e5",
+      "type": "task",
+      "name": "Rechnung im Finanzsystem anlegen",
+      "supplier": "Rechnungseingang",
+      "input": "Digitalisierte Rechnung",
+      "output": "Rechnungsbeleg mit Belegnummer",
+      "customer": "Kreditorenbuchhaltung",
+      "description": "Erfassung der Kopfdaten (Lieferant, Betrag, Fälligkeit, Bestellbezug) im Finanzsystem."
+    },
+    {
+      "id": "step-6457e5b7",
+      "lane": "lane-232b62e5",
+      "type": "decision",
+      "name": "Formalprüfung vollständig?",
+      "supplier": "Kreditorenbuchhaltung",
+      "input": "Rechnungsbeleg, Bestelldaten",
+      "output": "Prüfprotokoll (Bestellnummer, Steuernummer, Kontierung)",
+      "customer": "Kreditorenbuchhaltung",
+      "description": "Prüfung, ob alle Pflichtangaben und der Bestellbezug vorhanden sind."
+    },
+    {
+      "id": "step-312c1716",
+      "lane": "lane-232b62e5",
+      "type": "task",
+      "name": "Rückfrage an Lieferanten klären",
+      "supplier": "Kreditorenbuchhaltung",
+      "input": "Unvollständige Rechnungsangaben",
+      "output": "Korrigierte bzw. ergänzte Rechnung",
+      "customer": "Wesselmann Baustoffhandel GmbH",
+      "description": "Bei fehlenden Angaben wird der Lieferant zur Korrektur aufgefordert; die Rechnung wird danach erneut geprüft."
+    },
+    {
+      "id": "step-50aec2bb",
+      "lane": "lane-a1f8b3e8",
+      "type": "decision",
+      "name": "Leistung erbracht und mengenmäßig korrekt?",
+      "supplier": "Kreditorenbuchhaltung",
+      "input": "Rechnungsbeleg, Aufmaß / Lieferschein",
+      "output": "Sachliches Prüfergebnis",
+      "customer": "Fachbereich",
+      "description": "Der Kostenstellenverantwortliche bestätigt, dass die berechnete Leistung tatsächlich erbracht wurde."
+    },
+    {
+      "id": "step-b42feec2",
+      "lane": "lane-a1f8b3e8",
+      "type": "end",
+      "name": "Rechnung zurückweisen",
+      "supplier": "Fachbereich",
+      "input": "Negatives Prüfergebnis",
+      "output": "Rückweisungsschreiben",
+      "customer": "Wesselmann Baustoffhandel GmbH",
+      "description": "Bei nicht nachweisbarer Leistungserbringung wird die Rechnung förmlich zurückgewiesen; der Vorgang endet hier."
+    },
+    {
+      "id": "step-af8f4634",
+      "lane": "lane-a1f8b3e8",
+      "type": "decision",
+      "name": "Rechnungsbetrag über 5.000 €?",
+      "supplier": "Fachbereich",
+      "input": "Sachlich geprüfte Rechnung",
+      "output": "Erforderliche Freigabestufe",
+      "customer": "Fachbereich / Geschäftsführung",
+      "description": "Bestimmt, ob die Freigabe durch den Kostenstellenverantwortlichen ausreicht oder die Geschäftsführung einbezogen werden muss."
+    },
+    {
+      "id": "step-41b9af2f",
+      "lane": "lane-a1f8b3e8",
+      "type": "task",
+      "name": "Freigabe durch Kostenstellenverantwortlichen",
+      "supplier": "Fachbereich",
+      "input": "Geprüfte Rechnung bis 5.000 €",
+      "output": "Freigegebene Rechnung",
+      "customer": "Kreditorenbuchhaltung",
+      "description": ""
+    },
+    {
+      "id": "step-a2fe70fd",
+      "lane": "lane-0c86f186",
+      "type": "task",
+      "name": "Freigabe durch Geschäftsführung",
+      "supplier": "Fachbereich",
+      "input": "Geprüfte Rechnung über 5.000 €",
+      "output": "Freigegebene Rechnung",
+      "customer": "Kreditorenbuchhaltung",
+      "description": ""
+    },
+    {
+      "id": "step-be985d25",
+      "lane": "lane-232b62e5",
+      "type": "task",
+      "name": "Zahlungslauf einplanen",
+      "supplier": "Fachbereich / Geschäftsführung",
+      "input": "Freigegebene Rechnung",
+      "output": "Zahlungsvorschlag im Zahllauf",
+      "customer": "Finanzsystem",
+      "description": ""
+    },
+    {
+      "id": "step-d0a4b258",
+      "lane": "lane-d511b239",
+      "type": "task",
+      "name": "Zahlung ausführen (SEPA-Überweisung)",
+      "supplier": "Kreditorenbuchhaltung",
+      "input": "Zahlungsvorschlag",
+      "output": "Zahlungsavis, Kontoauszugsbuchung",
+      "customer": "Wesselmann Baustoffhandel GmbH",
+      "description": ""
+    },
+    {
+      "id": "step-4d77bf57",
+      "lane": "lane-232b62e5",
+      "type": "end",
+      "name": "Vorgang abschließen und archivieren",
+      "supplier": "Finanzsystem",
+      "input": "Zahlungsbestätigung",
+      "output": "Revisionssicher archivierter Rechnungsvorgang",
+      "customer": "Revision / Wirtschaftsprüfung",
+      "description": "Nach erfolgter Zahlung wird der vollständige Vorgang GoBD-konform archiviert."
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-3a371239",
+      "from": "step-e3b27909",
+      "to": "step-357ca8f8",
+      "label": ""
+    },
+    {
+      "id": "conn-9b83e46c",
+      "from": "step-357ca8f8",
+      "to": "step-642032e7",
+      "label": ""
+    },
+    {
+      "id": "conn-dbfa8717",
+      "from": "step-642032e7",
+      "to": "step-6457e5b7",
+      "label": ""
+    },
+    {
+      "id": "conn-03da7956",
+      "from": "step-6457e5b7",
+      "to": "step-312c1716",
+      "label": "Nein"
+    },
+    {
+      "id": "conn-c3d33b94",
+      "from": "step-312c1716",
+      "to": "step-642032e7",
+      "label": "erneut einreichen"
+    },
+    {
+      "id": "conn-61be9fa1",
+      "from": "step-6457e5b7",
+      "to": "step-50aec2bb",
+      "label": "Ja"
+    },
+    {
+      "id": "conn-0233d1b1",
+      "from": "step-50aec2bb",
+      "to": "step-b42feec2",
+      "label": "Nein"
+    },
+    {
+      "id": "conn-d633a94a",
+      "from": "step-50aec2bb",
+      "to": "step-af8f4634",
+      "label": "Ja"
+    },
+    {
+      "id": "conn-4f3eab47",
+      "from": "step-af8f4634",
+      "to": "step-41b9af2f",
+      "label": "≤ 5.000 €"
+    },
+    {
+      "id": "conn-9720a745",
+      "from": "step-af8f4634",
+      "to": "step-a2fe70fd",
+      "label": "> 5.000 €"
+    },
+    {
+      "id": "conn-fd494616",
+      "from": "step-41b9af2f",
+      "to": "step-be985d25",
+      "label": ""
+    },
+    {
+      "id": "conn-e16ea001",
+      "from": "step-a2fe70fd",
+      "to": "step-be985d25",
+      "label": ""
+    },
+    {
+      "id": "conn-43947784",
+      "from": "step-be985d25",
+      "to": "step-d0a4b258",
+      "label": ""
+    },
+    {
+      "id": "conn-8a9fcbf4",
+      "from": "step-d0a4b258",
+      "to": "step-4d77bf57",
+      "label": ""
+    }
+  ]
+}

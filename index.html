@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIPOC Swimlane Studio</title>
+<meta name="description" content="Leichtgewichtige Standalone-Web-App zum Erfassen von SIPOC-Prozessen und zur automatischen Darstellung als Swimlane-Diagramm mit draw.io-Export." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="topbar-group topbar-left">
+      <span class="app-mark" aria-hidden="true">🗺️</span>
+      <select id="projectSelect" class="project-select" title="Projekt wechseln"></select>
+      <button id="newProjectBtn" class="btn btn-ghost" type="button">＋ Neues Projekt</button>
+    </div>
+    <div class="topbar-group topbar-center">
+      <input id="projectNameInput" class="project-name-input" type="text" spellcheck="false" placeholder="Projektname" />
+    </div>
+    <div class="topbar-group topbar-right">
+      <span id="saveStatus" class="save-status">—</span>
+      <div class="btn-divider" aria-hidden="true"></div>
+      <button id="linkFileBtn" class="btn btn-ghost" type="button">Datei verknüpfen…</button>
+      <button id="exportJsonBtn" class="btn btn-ghost" type="button">Exportieren</button>
+      <button id="importJsonBtn" class="btn btn-ghost" type="button">Importieren</button>
+      <input type="file" id="importFileInput" accept="application/json" hidden />
+      <button id="duplicateProjectBtn" class="btn btn-icon" type="button" title="Projekt duplizieren">⧉</button>
+      <button id="deleteProjectBtn" class="btn btn-icon btn-danger" type="button" title="Projekt löschen">🗑</button>
+      <button id="themeToggleBtn" class="btn btn-icon" type="button" title="Darstellung umschalten">◐</button>
+    </div>
+  </header>
+
+  <div class="body">
+    <nav class="sidebar" id="sidebar">
+      <button class="nav-item" data-section="sipoc"><span class="nav-icon">📋</span>SIPOC-Tabelle</button>
+      <button class="nav-item" data-section="lanes"><span class="nav-icon">🏷️</span>Akteure</button>
+      <button class="nav-item" data-section="connections"><span class="nav-icon">🔗</span>Verbindungen</button>
+      <button class="nav-item" data-section="diagram"><span class="nav-icon">🧭</span>Swimlane-Diagramm</button>
+      <div class="sidebar-footer">
+        <p>SIPOC Swimlane Studio läuft vollständig lokal im Browser. Es werden keine Daten an einen Server gesendet.</p>
+      </div>
+    </nav>
+
+    <main class="content">
+
+      <section id="section-sipoc" class="section">
+        <div class="section-header">
+          <div>
+            <h1>SIPOC-Tabelle</h1>
+            <p class="section-subtitle">Supplier · Input · Process · Output · Customer — je Prozessschritt.</p>
+          </div>
+          <div class="section-actions">
+            <select id="stepFilterLane" class="filter-select" title="Nach Akteur filtern"></select>
+            <button id="newStepBtn" class="btn btn-primary" type="button">＋ Neuer Schritt</button>
+          </div>
+        </div>
+        <div id="stepList" class="list-group"></div>
+      </section>
+
+      <section id="section-lanes" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Akteure</h1>
+            <p class="section-subtitle">Die Swimlanes des Diagramms — Rollen, Abteilungen oder Systeme.</p>
+          </div>
+          <div class="section-actions">
+            <button id="newLaneBtn" class="btn btn-primary" type="button">＋ Neuer Akteur</button>
+          </div>
+        </div>
+        <div id="laneList" class="list-group"></div>
+      </section>
+
+      <section id="section-connections" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Verbindungen</h1>
+            <p class="section-subtitle">Verknüpft Prozessschritte zu einem Ablauf und steuert das Swimlane-Diagramm.</p>
+          </div>
+          <div class="section-actions">
+            <button id="newConnectionBtn" class="btn btn-primary" type="button">＋ Neue Verbindung</button>
+          </div>
+        </div>
+        <div id="connectionList" class="list-group"></div>
+      </section>
+
+      <section id="section-diagram" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Swimlane-Diagramm</h1>
+            <p class="section-subtitle">Automatisch aus Akteuren, Schritten und Verbindungen erzeugt.</p>
+          </div>
+          <div class="section-actions">
+            <div class="zoom-controls">
+              <button id="zoomOutBtn" class="btn btn-icon" type="button" title="Verkleinern">－</button>
+              <span id="zoomLabel" class="zoom-label">100%</span>
+              <button id="zoomInBtn" class="btn btn-icon" type="button" title="Vergrößern">＋</button>
+              <button id="zoomResetBtn" class="btn btn-ghost" type="button" title="Einpassen">Einpassen</button>
+            </div>
+            <button id="copyXmlBtn" class="btn btn-ghost" type="button">XML kopieren</button>
+            <button id="exportDrawioBtn" class="btn btn-primary" type="button">Als draw.io exportieren</button>
+          </div>
+        </div>
+        <div id="diagramEmpty" class="empty-state hidden">
+          <p>Noch kein Diagramm. Lege Akteure, Prozessschritte und Verbindungen an — das Swimlane-Diagramm entsteht automatisch.</p>
+        </div>
+        <div id="diagramCanvasOuter" class="diagram-canvas-outer">
+          <div id="diagramCanvasWrapper" class="diagram-canvas-wrapper"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div id="overlay" class="overlay hidden"></div>
+
+<aside id="panel" class="panel hidden" aria-hidden="true">
+  <div class="panel-header">
+    <h2 id="panelTitle">Titel</h2>
+    <button id="panelClose" class="btn btn-icon" type="button" title="Schließen">✕</button>
+  </div>
+  <form id="panelForm" class="panel-form"></form>
+</aside>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
