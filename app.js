@@ -16,7 +16,7 @@
   // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
   // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
   // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.3.1";
 
   const STEP_TYPES = {
     start:    { label: "Start",         shape: "terminator", color: "var(--green)",  order: 0 },
@@ -1219,21 +1219,27 @@
         }
         const from = isText(conn.from) ? conn.from.trim() : null;
         const to = isText(conn.to) ? conn.to.trim() : null;
+
+        // Verweist eine Verbindung auf einen Schritt, den der Agent zwar
+        // angelegt hat, der aber wegen eines eigenen Mangels verworfen wurde,
+        // wäre eine zweite Meldung nur ein Folgefehler: Die Ursache steht
+        // bereits in der Liste und würde von der Wiederholung zugedeckt.
+        const known = (key) => stepByKey.has(key) || seenKeys.has(key);
+        const keyList = () => Array.from(seenKeys).map((k) => '"' + k + '"').join(", ") || "(keine)";
+
         if (!from) {
           errors.push(issue(at + ".from", "Das Feld from fehlt oder ist leer.",
             "Setze from auf den key des Schritts, von dem der Ablauf ausgeht."));
-        } else if (!stepByKey.has(from)) {
+        } else if (!known(from)) {
           errors.push(issue(at + ".from", "Der Schlüssel \"" + from + "\" kommt in steps nicht vor.",
-            "Vorhandene Schlüssel: " + Array.from(stepByKey.keys()).map((k) => '"' + k + '"').join(", ") +
-            ". Korrigiere from oder ergänze den fehlenden Schritt."));
+            "Vorhandene Schlüssel: " + keyList() + ". Korrigiere from oder ergänze den fehlenden Schritt."));
         }
         if (!to) {
           errors.push(issue(at + ".to", "Das Feld to fehlt oder ist leer.",
             "Setze to auf den key des Folgeschritts."));
-        } else if (!stepByKey.has(to)) {
+        } else if (!known(to)) {
           errors.push(issue(at + ".to", "Der Schlüssel \"" + to + "\" kommt in steps nicht vor.",
-            "Vorhandene Schlüssel: " + Array.from(stepByKey.keys()).map((k) => '"' + k + '"').join(", ") +
-            ". Korrigiere to oder ergänze den fehlenden Schritt."));
+            "Vorhandene Schlüssel: " + keyList() + ". Korrigiere to oder ergänze den fehlenden Schritt."));
         }
         if (from && to && from === to) {
           errors.push(issue(at, "Der Schritt \"" + from + "\" verweist auf sich selbst.",

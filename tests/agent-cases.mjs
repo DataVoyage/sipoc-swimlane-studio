@@ -42,6 +42,11 @@ const clone = (mutate) => {
 };
 
 export const cases = [
+  // Verweist eine Verbindung auf einen Schritt, der wegen eines eigenen Mangels
+  // verworfen wurde, darf daraus kein zweiter (Folge-)Fehler entstehen.
+  { name: "kein Folgefehler bei verworfenem Schritt", input: clone((c) => { c.steps[1].lane = "Unbekannt"; }), expectOk: false,
+    expect: ['Der Akteur "Unbekannt" ist unter lanes nicht definiert'],
+    expectNot: ['Der Schlüssel "pruefen" kommt in steps nicht vor'] },
   { name: "leere Eingabe", input: "", expectOk: false, expect: ["kein Text eingefügt"] },
   { name: "Fließtext ohne JSON", input: "Klar, hier ist dein Prozess!", expectOk: false, expect: ["kein gültiges JSON"] },
   { name: "Markdown-Codeblock", input: "```json\n" + clone() + "\n```", expectOk: true, expect: ["Markdown-Codeblock"] },

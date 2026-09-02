@@ -557,8 +557,9 @@ for (const c of agentCases) {
   const { report, accepted } = await checkAgentInput(c.input);
   const verdictMatches = accepted === c.expectOk;
   const textMatches = c.expect.some((snippet) => report.includes(snippet));
-  if (!verdictMatches || !textMatches) {
-    caseFailures.push(c.name + (verdictMatches ? " (Aussage fehlt)" : " (falsches Urteil)"));
+  const noFollowUp = !(c.expectNot || []).some((snippet) => report.includes(snippet));
+  if (!verdictMatches || !textMatches || !noFollowUp) {
+    caseFailures.push(c.name + (!verdictMatches ? " (falsches Urteil)" : !textMatches ? " (Aussage fehlt)" : " (unerwünschte Folgemeldung)"));
   }
 }
 ok("9.5-9.9", caseFailures.length === 0,
