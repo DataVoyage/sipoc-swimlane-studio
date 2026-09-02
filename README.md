@@ -148,6 +148,42 @@ examples/     Beispielprojekt als .sipoc.json und bereits exportierte
 docs/         Vorgangskatalog und Screenshots
 ```
 
+## Prozess von einem KI-Agenten erzeugen lassen
+
+Der Reiter **„Import vom Agent“** ist für den Fall gedacht, dass ein KI-Agent
+den Prozess ausarbeiten soll, statt ihn Schritt für Schritt von Hand zu
+erfassen. Er führt durch drei Schritte:
+
+1. **Prompt kopieren.** Die App enthält einen ausformulierten Prompt, der das
+   erwartete Format vollständig beschreibt: Aufbau, jedes einzelne Feld mit
+   Bedeutung und Pflichtangabe, die erlaubten Schritt-Typen, die inhaltlichen
+   Regeln (genau ein Start, beschriftete Entscheidungszweige …) sowie ein
+   vollständiges, gültiges Beispiel. Er wird zusammen mit der eigentlichen
+   Aufgabe an den Agenten gegeben.
+2. **Antwort einfügen und prüfen.** Die Antwort des Agenten wird eingefügt und
+   geprüft — es wird nichts blind importiert.
+3. **Ergebnis.** Passt alles, lässt sich der Prozess als neues Projekt
+   übernehmen und steht sofort als SIPOC-Tabelle und Swimlane-Diagramm bereit.
+
+![Import vom Agent](docs/images/import-vom-agent.png)
+
+Der eigentliche Unterschied zum normalen Import liegt im Fehlerfall: Statt
+einer pauschalen Meldung entsteht eine **Mängelliste, die als Arbeitsauftrag an
+den Agenten formuliert ist** — je Beanstandung mit Fundstelle (z. B.
+`steps[2].lane`), dem konkreten Problem und der auszuführenden Korrektur,
+inklusive der jeweils gültigen Auswahl („Definierte Akteure: …“, „Vorhandene
+Schlüssel: …“). Diese Rückmeldung lässt sich mit einem Klick kopieren und dem
+Agenten zurückgeben; sie fordert ausdrücklich die vollständige, korrigierte
+Ausgabe an.
+
+Unterschieden wird dabei zwischen **Fehlern**, die den Import blockieren
+(fehlende Pflichtangaben, unbekannte Akteure oder Schrittschlüssel, ungültige
+Typen, Verbindungen ins Leere), und **Hinweisen**, die den Import nicht
+aufhalten, aber zurückgemeldet werden: etwa ein in Markdown eingefasstes JSON,
+Begleittext um die Antwort herum, deutsche statt englischer Typbezeichnungen
+oder fachliche Auffälligkeiten wie ein fehlender Startpunkt, eine Entscheidung
+ohne beschriftete Zweige oder unvollständig gefüllte SIPOC-Felder.
+
 ## App als lokale Datei mitnehmen
 
 Über **Aktionen → „App als Datei herunterladen…“** erzeugt die App eine

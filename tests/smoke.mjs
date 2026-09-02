@@ -16,6 +16,7 @@ import fs from "fs";
 import http from "http";
 import os from "os";
 import { fileURLToPath } from "url";
+import { cases as agentCases, gutesBeispiel as agentGoodExample } from "./agent-cases.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const url = "file://" + path.resolve(__dirname, "..", "index.html");
@@ -372,6 +373,28 @@ ok("8.1b", !/<link[^>]+rel="stylesheet"/.test(standaloneHtml) && standaloneHtml.
 ok("8.1c", !/<script[^>]+src=/.test(standaloneHtml), "kein externes Skript mehr referenziert");
 ok("8.1d", standaloneHtml.includes('id="bundledData"'), "aktuelle Daten sind eingebettet");
 
+// 8.1e/f — die übrigen Inhaltsvarianten des Downloads
+async function downloadVariant(value) {
+  await httpPage.click("#moreMenuBtn");
+  await httpPage.waitForTimeout(150);
+  await httpPage.click("#downloadAppBtn");
+  await httpPage.waitForTimeout(250);
+  await httpPage.selectOption("#f_content", value);
+  const [d] = await Promise.all([
+    httpPage.waitForEvent("download"),
+    httpPage.click("#panelForm button[type=submit]"),
+  ]);
+  return fs.readFileSync(await d.path(), "utf8");
+}
+const exampleVariant = await downloadVariant("example");
+ok("8.1e", !exampleVariant.includes('id="bundledData"') && exampleVariant.includes("<style>"),
+  "Variante „Beispielprojekt“ enthält keine übernommenen Daten");
+const emptyVariant = await downloadVariant("empty");
+const emptyMatch = /id="bundledData"[^>]*>([\s\S]*?)<\/script>/.exec(emptyVariant);
+const emptyStore = emptyMatch ? JSON.parse(emptyMatch[1].replace(/\\u003c/g, "<")) : null;
+ok("8.1f", !!emptyStore && emptyStore.projects.length === 1 && emptyStore.projects[0].steps.length === 0,
+  "Variante „Leer starten“ enthält genau ein leeres Projekt");
+
 // 8.2 — heruntergeladene Datei läuft eigenständig per file://
 const standalonePage = await browser.newPage();
 const standaloneErrors = [];
@@ -441,8 +464,205 @@ await httpPage.close();
 await standalonePage.close();
 await conflictPage.close();
 await robustPage.close();
-server.close();
 fs.rmSync(standaloneDir, { recursive: true, force: true });
+// Der HTTP-Server bleibt für die Zwischenablage-Prüfungen in AP9 bestehen.
+
+// --- Nachträge zu AP3/AP5 (eigene Sitzung auf dem Beispielprojekt) -----------
+
+const extraPage = await browser.newPage();
+extraPage.on("dialog", (d) => d.accept());
+await extraPage.goto(url);
+await extraPage.waitForTimeout(300);
+await extraPage.evaluate(() => localStorage.clear());
+await extraPage.reload();
+await extraPage.waitForTimeout(400);
+
+// 3.9 — Schritt bearbeiten, inklusive Typwechsel
+await extraPage.locator("#stepList .list-row", { hasText: "Rechnung im Finanzsystem anlegen" }).click();
+await extraPage.waitForTimeout(150);
+await extraPage.fill("#f_name", "Rechnungsbeleg erfassen");
+await extraPage.click('label[for="f_type_decision"]');
+await extraPage.click("#panelForm button[type=submit]");
+await extraPage.waitForTimeout(250);
+const editedRow = await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).innerText();
+ok("3.9", editedRow.includes("Entscheidung"), "Name und Typ übernommen");
+
+// 3.12 — Schritt mit bestehenden Verbindungen löschen entfernt auch diese
+await extraPage.click('.nav-item[data-section="connections"]');
+await extraPage.waitForTimeout(200);
+const connBefore = await extraPage.locator("#connectionList .list-row[data-conn-id]").count();
+await extraPage.click('.nav-item[data-section="sipoc"]');
+await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).click();
+await extraPage.waitForTimeout(150);
+await extraPage.click("#panelDeleteBtn");
+await extraPage.waitForTimeout(300);
+await extraPage.click('.nav-item[data-section="connections"]');
+await extraPage.waitForTimeout(200);
+const connAfter = await extraPage.locator("#connectionList .list-row[data-conn-id]").count();
+ok("3.12", connAfter === connBefore - 3 &&
+  (await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).count()) === 0,
+  `Schritt entfernt, Verbindungen ${connBefore} → ${connAfter}`);
+
+// 5.5 — „Einpassen“ nach Fenstergrößenänderung
+await extraPage.setViewportSize({ width: 1400, height: 900 });
+await extraPage.click('.nav-item[data-section="diagram"]');
+await extraPage.waitForTimeout(500);
+const zoomWide = await extraPage.locator("#zoomLabel").textContent();
+await extraPage.setViewportSize({ width: 760, height: 700 });
+await extraPage.waitForTimeout(700); // Resize ist entprellt
+const zoomNarrow = await extraPage.locator("#zoomLabel").textContent();
+ok("5.5", parseInt(zoomNarrow, 10) < parseInt(zoomWide, 10),
+  `Zoom passt sich an: ${zoomWide} → ${zoomNarrow}`);
+await extraPage.close();
+
+// --- AP9 Import vom Agent ----------------------------------------------------
+
+const agentPage = await browser.newPage();
+const agentErrors = [];
+agentPage.on("pageerror", (e) => agentErrors.push("PAGEERROR: " + e.message));
+agentPage.on("console", (m) => { if (m.type() === "error") agentErrors.push("CONSOLE: " + m.text()); });
+await agentPage.goto(url);
+await agentPage.waitForTimeout(300);
+await agentPage.evaluate(() => localStorage.clear());
+await agentPage.reload();
+await agentPage.waitForTimeout(300);
+await agentPage.click('.nav-item[data-section="agent"]');
+await agentPage.waitForTimeout(250);
+
+async function checkAgentInput(text) {
+  await agentPage.fill("#agentInput", text);
+  await agentPage.click("#checkAgentBtn");
+  await agentPage.waitForTimeout(90);
+  return {
+    report: await agentPage.locator(".agent-report pre").textContent(),
+    accepted: (await agentPage.locator("#importAgentBtn").count()) > 0,
+  };
+}
+
+ok("9.1", (await agentPage.locator("#agentPromptText").textContent()).includes("sipoc-swimlane-studio/agent-import"),
+  "Prompt mit Formatbeschreibung wird angezeigt");
+
+// 9.2 — Prompt als Datei speichern
+const [promptDownload] = await Promise.all([
+  agentPage.waitForEvent("download"),
+  agentPage.click("#downloadAgentPromptBtn"),
+]);
+const promptFile = fs.readFileSync(await promptDownload.path(), "utf8");
+ok("9.2", promptDownload.suggestedFilename().endsWith(".md") && promptFile.includes("## Felder im Einzelnen"),
+  "Prompt wird als Datei gespeichert (" + promptDownload.suggestedFilename() + ")");
+
+// 9.2 — jeder Fall der Sammlung führt zum erwarteten Urteil und zur passenden Aussage
+let caseFailures = [];
+for (const c of agentCases) {
+  const { report, accepted } = await checkAgentInput(c.input);
+  const verdictMatches = accepted === c.expectOk;
+  const textMatches = c.expect.some((snippet) => report.includes(snippet));
+  if (!verdictMatches || !textMatches) {
+    caseFailures.push(c.name + (verdictMatches ? " (Aussage fehlt)" : " (falsches Urteil)"));
+  }
+}
+ok("9.5-9.9", caseFailures.length === 0,
+  caseFailures.length ? "fehlgeschlagen: " + caseFailures.join("; ") : agentCases.length + " Antwortvarianten korrekt beurteilt");
+
+// 9.3 — das im Prompt gezeigte Beispiel muss selbst fehlerfrei durchlaufen
+const promptText = await agentPage.locator("#agentPromptText").textContent();
+const exampleStart = promptText.indexOf("{", promptText.indexOf("## Vollständiges Beispiel"));
+const exampleEnd = promptText.indexOf("## Wenn du eine Fehlermeldung", exampleStart);
+const promptExample = promptText.slice(exampleStart, exampleEnd).trim();
+const exampleResult = await checkAgentInput(promptExample);
+ok("9.3", exampleResult.accepted && !exampleResult.report.includes("ZU BEHEBEN"),
+  "Beispiel im Prompt erfüllt die eigenen Vorgaben ohne Beanstandung");
+
+// 9.4 — Fehlerbericht ist als Arbeitsauftrag formuliert und nennt Fundstellen
+const brokenResult = await checkAgentInput(JSON.stringify({
+  format: "sipoc-swimlane-studio/agent-import",
+  project: { name: "Unvollständig" },
+  lanes: [{ name: "Fachbereich" }],
+  steps: [{ key: "a", name: "Prüfen", lane: "Einkauf", type: "aufgabe" }],
+  connections: [{ from: "a", to: "b" }],
+}));
+ok("9.4a", !brokenResult.accepted, "fehlerhafte Antwort wird nicht zum Import freigegeben");
+ok("9.4b",
+  brokenResult.report.includes("ZU BEHEBEN") &&
+  brokenResult.report.includes("Fundstelle") &&
+  brokenResult.report.includes("Korrektur:") &&
+  brokenResult.report.includes("VOLLSTÄNDIGE"),
+  "Bericht nennt Fundstelle, Korrektur und fordert vollständige Neuausgabe");
+ok("9.4c", brokenResult.report.includes("steps[0].lane") && brokenResult.report.includes("Definierte Akteure"),
+  "unbekannter Akteur wird mit Fundstelle und Auswahlliste gemeldet");
+ok("9.4d", brokenResult.report.includes('"b" kommt in steps nicht vor'),
+  "unbekannter Verbindungsschlüssel wird gemeldet");
+
+// 9.5 — gültige Antwort lässt sich als neues Projekt übernehmen
+await checkAgentInput(agentGoodExample);
+await agentPage.click("#importAgentBtn");
+await agentPage.waitForTimeout(400);
+const importedName = await agentPage.locator("#projectNameInput").inputValue();
+const importedSteps = await agentPage.locator("#stepList .list-row[data-step-id]").count();
+await agentPage.click('.nav-item[data-section="lanes"]');
+await agentPage.waitForTimeout(150);
+const importedLanes = await agentPage.locator("#laneList .list-row[data-lane-id]").count();
+await agentPage.click('.nav-item[data-section="diagram"]');
+await agentPage.waitForTimeout(400);
+const importedSvg = await agentPage.locator("#diagramCanvasWrapper svg").count();
+ok("9.5", importedName === "Reklamation bearbeiten" && importedSteps === 5 && importedLanes === 2 && importedSvg === 1,
+  `übernommen als "${importedName}" mit ${importedSteps} Schritten, ${importedLanes} Akteuren, Diagramm: ${importedSvg}`);
+
+// 9.6 — der übernommene Prozess ist vollwertig: draw.io-Export funktioniert
+const [agentXml] = await Promise.all([
+  agentPage.waitForEvent("download"),
+  agentPage.click("#exportDrawioBtn"),
+]);
+const agentXmlText = fs.readFileSync(await agentXml.path(), "utf8");
+ok("9.6", agentXmlText.includes("<mxfile") && agentXmlText.includes("rhombus"),
+  "draw.io-Export des übernommenen Prozesses inkl. Entscheidungsraute");
+
+// 9.8 — Eingabefeld leeren setzt auch das Prüfergebnis zurück
+await agentPage.click('.nav-item[data-section="agent"]');
+await agentPage.waitForTimeout(200);
+await checkAgentInput("kein json");
+await agentPage.click("#clearAgentInputBtn");
+await agentPage.waitForTimeout(150);
+ok("9.8", (await agentPage.locator("#agentInput").inputValue()) === "" &&
+  (await agentPage.locator(".agent-placeholder").count()) === 1,
+  "„Leeren“ setzt Eingabe und Ergebnis zurück");
+
+ok("9.7", agentErrors.length === 0, agentErrors.join(" | ") || "keine JS-Fehler auf der Agent-Seite");
+await agentPage.close();
+
+// 9.9 / 5.7 — Kopieren in die Zwischenablage (braucht http-Herkunft und Berechtigung)
+const clipContext = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+const clipPage = await clipContext.newPage();
+await clipPage.goto(httpUrl);
+await clipPage.waitForTimeout(400);
+await clipPage.click('.nav-item[data-section="agent"]');
+await clipPage.waitForTimeout(250);
+await clipPage.click("#copyAgentPromptBtn");
+await clipPage.waitForTimeout(250);
+const clippedPrompt = await clipPage.evaluate(() => navigator.clipboard.readText());
+ok("9.9a", clippedPrompt.includes("sipoc-swimlane-studio/agent-import") &&
+  clippedPrompt.includes("## Vollständiges Beispiel") && clippedPrompt.includes("## Inhaltliche Regeln"),
+  "Prompt landet vollständig in der Zwischenablage");
+
+await clipPage.fill("#agentInput", '{ "project": { "name": "X" } }');
+await clipPage.click("#checkAgentBtn");
+await clipPage.waitForTimeout(200);
+await clipPage.click("#copyAgentReportBtn");
+await clipPage.waitForTimeout(250);
+const clippedReport = await clipPage.evaluate(() => navigator.clipboard.readText());
+ok("9.9b", clippedReport.includes("ZU BEHEBEN") && clippedReport.includes("Abschnitt lanes fehlt"),
+  "Fehlerbericht landet in der Zwischenablage");
+
+await clipPage.click('.nav-item[data-section="diagram"]');
+await clipPage.waitForTimeout(400);
+await clipPage.click("#copyXmlBtn");
+await clipPage.waitForTimeout(250);
+const clippedXml = await clipPage.evaluate(() => navigator.clipboard.readText());
+ok("5.7", clippedXml.includes("<mxfile") && clippedXml.includes("swimlane"),
+  "draw.io-XML landet in der Zwischenablage");
+await clipContext.close();
+
+server.close();
 
 // --- Auswertung -------------------------------------------------------------
 

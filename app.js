@@ -16,7 +16,7 @@
   // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
   // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
   // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
-  const APP_VERSION = "1.2.0";
+  const APP_VERSION = "1.3.0";
 
   const STEP_TYPES = {
     start:    { label: "Start",         shape: "terminator", color: "var(--green)",  order: 0 },
@@ -805,6 +805,586 @@
     );
   }
 
+  /* =====================================================================
+     Import vom KI-Agenten
+     Eigenes, bewusst schlichtes Austauschformat: Der Agent vergibt sprechende
+     Schlüssel statt IDs und referenziert Akteure über ihren Namen. Die
+     Prüfung sammelt alle Beanstandungen auf einmal und formuliert sie als
+     Arbeitsauftrag zurück an den Agenten.
+     ===================================================================== */
+
+  const AGENT_FORMAT_ID = "sipoc-swimlane-studio/agent-import";
+  const AGENT_TYPES = ["start", "task", "decision", "end"];
+
+  // Häufige Abweichungen, die verstanden, aber zurückgemeldet werden.
+  const AGENT_TYPE_ALIASES = {
+    beginn: "start", anfang: "start", startpunkt: "start",
+    aufgabe: "task", schritt: "task", taetigkeit: "task", tätigkeit: "task", prozessschritt: "task", activity: "task", process: "task",
+    entscheidung: "decision", verzweigung: "decision", pruefung: "decision", prüfung: "decision", gateway: "decision",
+    ende: "end", endpunkt: "end", abschluss: "end", stop: "end", terminator: "end",
+  };
+
+  const AGENT_PROMPT = [
+    "Du erzeugst Prozessdaten für die Anwendung „SIPOC Swimlane Studio“. Aus deiner Antwort wird",
+    "automatisch ein SIPOC-Katalog und ein Swimlane-Diagramm erzeugt. Halte dich exakt an das folgende Format.",
+    "",
+    "## Ausgaberegeln",
+    "1. Gib ausschließlich ein einziges JSON-Objekt aus. Kein einleitender Satz, keine Erklärung, keine Nachbemerkung.",
+    "2. Keine Markdown-Codeblöcke (keine ```-Zeilen), keine Kommentare, keine abschließenden Kommas.",
+    "3. Nur doppelte Anführungszeichen. Alle Werte sind einzeilige Zeichenketten ohne Zeilenumbrüche.",
+    "4. Schreibe die Inhalte in der Sprache des Prozesses (in der Regel Deutsch), die Feldnamen bleiben englisch wie unten angegeben.",
+    "",
+    "## Grundgerüst",
+    "{",
+    '  "format": "' + AGENT_FORMAT_ID + '",',
+    '  "version": 1,',
+    '  "project": { "name": "…" },',
+    '  "lanes": [ … ],',
+    '  "steps": [ … ],',
+    '  "connections": [ … ]',
+    "}",
+    "",
+    "## Felder im Einzelnen",
+    "",
+    "project.name  (Pflicht, Text 3–80 Zeichen)  Sprechender Name des Prozesses, z. B. „Kreditorenrechnungsprüfung“.",
+    "",
+    "lanes  (Pflicht, 1–12 Einträge)  Die Swimlanes: beteiligte Rollen, Abteilungen, Systeme oder externe Partner.",
+    "  - name         Pflicht, eindeutig, kurz (z. B. „Kreditorenbuchhaltung“).",
+    "  - description  Optional, ein Satz zur Zuständigkeit.",
+    "  Reihenfolge = Reihenfolge der Zeilen im Diagramm. Beginne mit der auslösenden Seite (oft extern).",
+    "",
+    "steps  (Pflicht, 1–60 Einträge)  Die Prozessschritte in SIPOC-Sicht.",
+    "  - key          Pflicht, eindeutig, kurz, nur Buchstaben/Ziffern/Bindestrich/Unterstrich (z. B. „rechnung_pruefen“).",
+    "                 Der Schlüssel dient nur zum Verknüpfen in connections und taucht in der Oberfläche nicht auf.",
+    "  - name         Pflicht, die Tätigkeit als Verb-Formulierung (z. B. „Rechnung sachlich prüfen“).",
+    "                 Bei type „decision“ formuliere eine Ja/Nein-Frage (z. B. „Betrag über 5.000 €?“).",
+    "  - lane         Pflicht, muss ZEICHENGENAU einem der oben definierten lanes[].name entsprechen.",
+    '  - type         Pflicht, genau einer dieser vier kleingeschriebenen Werte: "start", "task", "decision", "end".',
+    "  - supplier     Wer den Input dieses Schritts liefert (Rolle, System oder Partner).",
+    "  - input        Was in den Schritt hineingeht (Beleg, Datensatz, Information).",
+    "  - output       Was der Schritt erzeugt.",
+    "  - customer     Wer den Output empfängt bzw. weiterverarbeitet.",
+    "  - description  Optional, ein Satz zur fachlichen Erläuterung.",
+    "  Die vier Felder supplier, input, output und customer sind der Kern von SIPOC — fülle sie für jeden Schritt.",
+    "",
+    "connections  (Pflicht, mindestens 1 Eintrag)  Der Ablauf zwischen den Schritten.",
+    "  - from   Pflicht, ein key aus steps.",
+    "  - to     Pflicht, ein anderer key aus steps.",
+    '  - label  Bei Verzweigungen Pflicht (z. B. "Ja", "Nein", "über 5.000 €"), sonst weglassen.',
+    "",
+    "## Inhaltliche Regeln",
+    '- Genau ein Schritt hat type "start", mindestens ein Schritt hat type "end".',
+    '- Jeder Schritt mit type "decision" hat mindestens zwei ausgehende connections, jede mit einem label.',
+    '- Jeder Schritt außer dem "start"-Schritt ist über mindestens eine Verbindung erreichbar.',
+    "- Rückschleifen (Nacharbeit, erneute Prüfung) sind ausdrücklich erlaubt und erwünscht, wo sie fachlich vorkommen.",
+    "- Ein Schritt verweist nie auf sich selbst.",
+    "- Wechselt die Zuständigkeit, wechselt auch die lane — daraus entstehen die Swimlanes.",
+    "",
+    "## Vollständiges Beispiel",
+    "{",
+    '  "format": "' + AGENT_FORMAT_ID + '",',
+    '  "version": 1,',
+    '  "project": { "name": "Urlaubsantrag bearbeiten" },',
+    '  "lanes": [',
+    '    { "name": "Mitarbeitende", "description": "Antragstellende Person" },',
+    '    { "name": "Führungskraft", "description": "Fachliche Genehmigung" },',
+    '    { "name": "Personalabteilung", "description": "Verbuchung im Zeitwirtschaftssystem" }',
+    "  ],",
+    '  "steps": [',
+    '    { "key": "antrag_stellen", "name": "Urlaubsantrag stellen", "lane": "Mitarbeitende", "type": "start",',
+    '      "supplier": "Mitarbeitende", "input": "Urlaubswunsch, Resturlaubskonto", "output": "Erfasster Urlaubsantrag", "customer": "Führungskraft" },',
+    '    { "key": "antrag_pruefen", "name": "Antrag auf Vertretung und Auslastung prüfen", "lane": "Führungskraft", "type": "task",',
+    '      "supplier": "Mitarbeitende", "input": "Erfasster Urlaubsantrag", "output": "Prüfergebnis", "customer": "Führungskraft" },',
+    '    { "key": "genehmigt", "name": "Antrag genehmigt?", "lane": "Führungskraft", "type": "decision",',
+    '      "supplier": "Führungskraft", "input": "Prüfergebnis", "output": "Entscheidung", "customer": "Personalabteilung" },',
+    '    { "key": "verbuchen", "name": "Urlaub im Zeitkonto verbuchen", "lane": "Personalabteilung", "type": "task",',
+    '      "supplier": "Führungskraft", "input": "Genehmigter Antrag", "output": "Aktualisiertes Zeitkonto", "customer": "Mitarbeitende" },',
+    '    { "key": "abgelehnt", "name": "Ablehnung mitteilen", "lane": "Führungskraft", "type": "end",',
+    '      "supplier": "Führungskraft", "input": "Ablehnungsentscheidung", "output": "Begründete Absage", "customer": "Mitarbeitende" },',
+    '    { "key": "bestaetigen", "name": "Genehmigung bestätigen", "lane": "Personalabteilung", "type": "end",',
+    '      "supplier": "Personalabteilung", "input": "Aktualisiertes Zeitkonto", "output": "Bestätigung im Self-Service", "customer": "Mitarbeitende" }',
+    "  ],",
+    '  "connections": [',
+    '    { "from": "antrag_stellen", "to": "antrag_pruefen" },',
+    '    { "from": "antrag_pruefen", "to": "genehmigt" },',
+    '    { "from": "genehmigt", "to": "verbuchen", "label": "Ja" },',
+    '    { "from": "genehmigt", "to": "abgelehnt", "label": "Nein" },',
+    '    { "from": "verbuchen", "to": "bestaetigen" }',
+    "  ]",
+    "}",
+    "",
+    "## Wenn du eine Fehlermeldung zurückbekommst",
+    "Die Anwendung meldet Beanstandungen mit genauer Fundstelle (z. B. steps[3].type). Korrigiere ausschließlich",
+    "die genannten Punkte und gib danach das vollständige JSON erneut aus — nicht nur den geänderten Ausschnitt.",
+  ].join("\n");
+
+  /* ------------------------------------------------- Prüfung des Agenten-JSON */
+
+  function issue(path, message, fix) {
+    return { path, message, fix };
+  }
+
+  function isText(v) {
+    return typeof v === "string" && v.trim() !== "";
+  }
+
+  function typeName(v) {
+    if (v === null) return "null";
+    if (Array.isArray(v)) return "Liste";
+    if (typeof v === "string") return "Text";
+    if (typeof v === "number") return "Zahl";
+    if (typeof v === "boolean") return "Wahrheitswert";
+    if (typeof v === "object") return "Objekt";
+    return typeof v;
+  }
+
+  // Nimmt den Rohtext aus dem Eingabefeld und liefert Beanstandungen sowie —
+  // sofern nichts Blockierendes gefunden wurde — das fertige Projekt.
+  function checkAgentPayload(rawInput) {
+    const errors = [];
+    const notes = [];
+    let text = String(rawInput == null ? "" : rawInput).trim();
+
+    if (!text) {
+      errors.push(issue("(Eingabe)", "Es wurde kein Text eingefügt.",
+        "Füge die vollständige JSON-Antwort des Agenten in das Feld ein."));
+      return { ok: false, errors, notes, project: null };
+    }
+
+    // Toleranz gegenüber dem häufigsten Agentenfehler: Markdown-Codeblock.
+    const fence = text.match(/^\s*```[a-zA-Z]*\s*([\s\S]*?)\s*```\s*$/);
+    if (fence) {
+      text = fence[1].trim();
+      notes.push(issue("(Ausgabeform)", "Die Antwort war in einen Markdown-Codeblock eingefasst; er wurde entfernt.",
+        "Gib das JSON künftig ohne umschließende ```-Zeilen aus."));
+    }
+    // Ebenfalls häufig: erklärender Text vor oder nach dem Objekt.
+    if (!text.startsWith("{")) {
+      const first = text.indexOf("{");
+      const last = text.lastIndexOf("}");
+      if (first !== -1 && last > first) {
+        text = text.slice(first, last + 1);
+        notes.push(issue("(Ausgabeform)", "Vor dem JSON stand zusätzlicher Text; er wurde ignoriert.",
+          "Gib ausschließlich das JSON-Objekt aus, ohne einleitende oder abschließende Sätze."));
+      }
+    }
+
+    let doc;
+    try {
+      doc = JSON.parse(text);
+    } catch (e) {
+      const pos = /position (\d+)/i.exec(e.message);
+      let where = "";
+      if (pos) {
+        const index = Number(pos[1]);
+        const upto = text.slice(0, index);
+        const line = upto.split("\n").length;
+        const column = index - upto.lastIndexOf("\n");
+        where = " (Zeile " + line + ", Spalte " + column + ": …" +
+          text.slice(Math.max(0, index - 40), index + 40).replace(/\n/g, "⏎") + "…)";
+      }
+      errors.push(issue("(JSON)", "Die Antwort ist kein gültiges JSON: " + e.message + where,
+        "Häufige Ursachen: ein Komma hinter dem letzten Element einer Liste, einfache statt doppelte " +
+        "Anführungszeichen, ein fehlendes Komma zwischen zwei Objekten oder ein Zeilenumbruch innerhalb eines Textwertes. " +
+        "Prüfe die genannte Stelle und gib das vollständige JSON erneut aus."));
+      return { ok: false, errors, notes, project: null };
+    }
+
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
+      errors.push(issue("(Wurzel)", "Die Antwort ist " + (Array.isArray(doc) ? "eine Liste" : "kein Objekt") + ".",
+        'Die Antwort muss ein einzelnes Objekt sein, das mit "{" beginnt und die Schlüssel project, lanes, steps und connections enthält.'));
+      return { ok: false, errors, notes, project: null };
+    }
+
+    if (doc.format !== AGENT_FORMAT_ID) {
+      notes.push(issue("format", "Das Feld format fehlt oder weicht ab (gefunden: " +
+        (doc.format === undefined ? "nicht vorhanden" : JSON.stringify(doc.format)) + ").",
+        'Setze "format": "' + AGENT_FORMAT_ID + '".'));
+    }
+
+    /* ---- project ---- */
+    let projectName = "Importierter Prozess";
+    if (doc.project === undefined) {
+      errors.push(issue("project", "Der Abschnitt project fehlt.",
+        'Ergänze "project": { "name": "Name des Prozesses" }.'));
+    } else if (typeof doc.project !== "object" || doc.project === null || Array.isArray(doc.project)) {
+      errors.push(issue("project", "project ist " + typeName(doc.project) + ", erwartet wird ein Objekt.",
+        'Schreibe "project": { "name": "Name des Prozesses" }.'));
+    } else if (!isText(doc.project.name)) {
+      errors.push(issue("project.name", "Der Prozessname fehlt oder ist leer.",
+        'Ergänze einen sprechenden Namen, z. B. "project": { "name": "Kreditorenrechnungsprüfung" }.'));
+    } else {
+      projectName = doc.project.name.trim();
+      if (projectName.length > 80) {
+        notes.push(issue("project.name", "Der Prozessname ist mit " + projectName.length + " Zeichen sehr lang.",
+          "Kürze ihn auf höchstens 80 Zeichen."));
+      }
+    }
+
+    /* ---- lanes ---- */
+    const laneByName = new Map();
+    if (doc.lanes === undefined) {
+      errors.push(issue("lanes", "Der Abschnitt lanes fehlt.",
+        'Ergänze "lanes" als Liste der beteiligten Rollen, z. B. [ { "name": "Fachbereich" } ].'));
+    } else if (!Array.isArray(doc.lanes)) {
+      errors.push(issue("lanes", "lanes ist " + typeName(doc.lanes) + ", erwartet wird eine Liste.",
+        'Schreibe "lanes": [ { "name": "…" } ].'));
+    } else if (doc.lanes.length === 0) {
+      errors.push(issue("lanes", "lanes ist leer.",
+        "Gib mindestens einen Akteur an — jede Swimlane des Diagramms entspricht einem Eintrag."));
+    } else {
+      doc.lanes.forEach((lane, i) => {
+        const at = "lanes[" + i + "]";
+        if (typeof lane !== "object" || lane === null || Array.isArray(lane)) {
+          errors.push(issue(at, "Eintrag ist " + typeName(lane) + ", erwartet wird ein Objekt.",
+            'Schreibe { "name": "…", "description": "…" }.'));
+          return;
+        }
+        if (!isText(lane.name)) {
+          errors.push(issue(at + ".name", "Der Name des Akteurs fehlt oder ist leer.",
+            "Jeder Akteur braucht einen eindeutigen Namen, z. B. \"Kreditorenbuchhaltung\"."));
+          return;
+        }
+        const name = lane.name.trim();
+        if (laneByName.has(name)) {
+          errors.push(issue(at + ".name", "Der Akteur \"" + name + "\" ist mehrfach vorhanden.",
+            "Vergib je Akteur genau einen Eintrag und verweise aus mehreren Schritten auf denselben Namen."));
+          return;
+        }
+        if (lane.description !== undefined && typeof lane.description !== "string") {
+          notes.push(issue(at + ".description", "description ist " + typeName(lane.description) + " statt Text.",
+            "Gib eine einzeilige Beschreibung als Text an oder lasse das Feld weg."));
+        }
+        laneByName.set(name, {
+          id: uid("lane"),
+          name,
+          description: typeof lane.description === "string" ? lane.description.trim() : "",
+          color: LANE_COLORS[laneByName.size % LANE_COLORS.length],
+        });
+      });
+      if (doc.lanes.length > 12) {
+        notes.push(issue("lanes", "Es sind " + doc.lanes.length + " Akteure angegeben.",
+          "Mehr als zwölf Zeilen werden im Diagramm unübersichtlich; fasse verwandte Rollen zusammen."));
+      }
+    }
+
+    /* ---- steps ---- */
+    const stepByKey = new Map();
+    // Getrennt geführt, damit doppelte Schlüssel auch dann auffallen, wenn der
+    // zuerst vergebene Schritt wegen eines anderen Mangels verworfen wurde.
+    const seenKeys = new Set();
+    if (doc.steps === undefined) {
+      errors.push(issue("steps", "Der Abschnitt steps fehlt.",
+        'Ergänze "steps" als Liste der Prozessschritte.'));
+    } else if (!Array.isArray(doc.steps)) {
+      errors.push(issue("steps", "steps ist " + typeName(doc.steps) + ", erwartet wird eine Liste.",
+        'Schreibe "steps": [ { "key": "…", "name": "…", "lane": "…", "type": "task", … } ].'));
+    } else if (doc.steps.length === 0) {
+      errors.push(issue("steps", "steps ist leer.", "Gib mindestens einen Prozessschritt an."));
+    } else {
+      doc.steps.forEach((step, i) => {
+        const at = "steps[" + i + "]";
+        if (typeof step !== "object" || step === null || Array.isArray(step)) {
+          errors.push(issue(at, "Eintrag ist " + typeName(step) + ", erwartet wird ein Objekt.",
+            'Schreibe { "key": "…", "name": "…", "lane": "…", "type": "task" }.'));
+          return;
+        }
+
+        const label = isText(step.name) ? ' ("' + step.name.trim() + '")' : "";
+        let key = null;
+        if (!isText(step.key)) {
+          errors.push(issue(at + ".key", "Der Schlüssel key fehlt oder ist leer" + label + ".",
+            "Vergib einen kurzen, eindeutigen Schlüssel wie \"rechnung_pruefen\"; connections verweisen darauf."));
+        } else {
+          key = step.key.trim();
+          if (seenKeys.has(key)) {
+            errors.push(issue(at + ".key", "Der Schlüssel \"" + key + "\" wird mehrfach verwendet.",
+              "Jeder Schritt braucht einen eigenen key; ergänze z. B. eine Nummer."));
+            key = null;
+          } else {
+            seenKeys.add(key);
+            if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+              notes.push(issue(at + ".key", "Der Schlüssel \"" + key + "\" enthält Sonderzeichen oder Leerzeichen.",
+                "Verwende nur Buchstaben, Ziffern, Bindestrich und Unterstrich."));
+            }
+          }
+        }
+
+        if (!isText(step.name)) {
+          errors.push(issue(at + ".name", "Der Name des Prozessschritts fehlt oder ist leer.",
+            "Benenne die Tätigkeit, z. B. \"Rechnung sachlich prüfen\"."));
+        }
+
+        // Typ prüfen, dabei bekannte Abweichungen verstehen und melden.
+        let type = null;
+        if (step.type === undefined || step.type === null || step.type === "") {
+          errors.push(issue(at + ".type", "Das Feld type fehlt" + label + ".",
+            'Setze genau einen der Werte "start", "task", "decision" oder "end".'));
+        } else if (typeof step.type !== "string") {
+          errors.push(issue(at + ".type", "type ist " + typeName(step.type) + " statt Text.",
+            'Setze "type": "task" (bzw. start, decision, end).'));
+        } else {
+          const raw = step.type.trim();
+          const lower = raw.toLowerCase();
+          if (AGENT_TYPES.indexOf(lower) !== -1) {
+            type = lower;
+            if (raw !== lower) {
+              notes.push(issue(at + ".type", "type war \"" + raw + "\" geschrieben.",
+                "Schreibe den Wert kleingeschrieben: \"" + lower + "\"."));
+            }
+          } else if (AGENT_TYPE_ALIASES[lower]) {
+            type = AGENT_TYPE_ALIASES[lower];
+            notes.push(issue(at + ".type", "type war \"" + raw + "\"; das wurde als \"" + type + "\" gewertet.",
+              'Verwende ausschließlich die vier englischen Werte "start", "task", "decision", "end".'));
+          } else {
+            errors.push(issue(at + ".type", "Ungültiger Wert \"" + raw + "\"" + label + ".",
+              'Erlaubt sind genau: "start", "task", "decision", "end". Wähle den passenden Wert.'));
+          }
+        }
+
+        let laneRef = null;
+        if (!isText(step.lane)) {
+          errors.push(issue(at + ".lane", "Die Zuordnung zu einem Akteur fehlt" + label + ".",
+            "Setze lane auf einen der unter lanes definierten Namen."));
+        } else {
+          const laneName = step.lane.trim();
+          if (laneByName.has(laneName)) {
+            laneRef = laneByName.get(laneName);
+          } else {
+            const known = Array.from(laneByName.keys());
+            const close = known.find((n) => n.toLowerCase() === laneName.toLowerCase());
+            if (close) {
+              laneRef = laneByName.get(close);
+              notes.push(issue(at + ".lane", "Der Akteur \"" + laneName + "\" wich in der Schreibweise ab (verwendet: \"" + close + "\").",
+                "Schreibe lane zeichengenau wie in lanes[].name."));
+            } else {
+              errors.push(issue(at + ".lane", "Der Akteur \"" + laneName + "\" ist unter lanes nicht definiert.",
+                "Definierte Akteure: " + (known.length ? known.map((n) => '"' + n + '"').join(", ") : "(keine)") +
+                ". Ergänze den Akteur in lanes oder korrigiere die Schreibweise."));
+            }
+          }
+        }
+
+        ["supplier", "input", "output", "customer", "description"].forEach((f) => {
+          if (step[f] !== undefined && typeof step[f] !== "string") {
+            notes.push(issue(at + "." + f, f + " ist " + typeName(step[f]) + " statt Text.",
+              "Gib den Wert als einzeilige Zeichenkette an."));
+          }
+        });
+
+        const unknown = Object.keys(step).filter((k) =>
+          ["key", "name", "lane", "type", "supplier", "input", "output", "customer", "description"].indexOf(k) === -1);
+        if (unknown.length) {
+          notes.push(issue(at, "Unbekannte Felder: " + unknown.join(", ") + ".",
+            "Diese Felder werden ignoriert; lasse sie weg."));
+        }
+
+        if (key && type && laneRef) {
+          const text_ = (v) => (typeof v === "string" ? v.trim() : "");
+          stepByKey.set(key, {
+            id: uid("step"),
+            key,
+            lane: laneRef.id,
+            type,
+            name: isText(step.name) ? step.name.trim() : "(ohne Namen)",
+            supplier: text_(step.supplier),
+            input: text_(step.input),
+            output: text_(step.output),
+            customer: text_(step.customer),
+            description: text_(step.description),
+          });
+        }
+      });
+    }
+
+    /* ---- connections ---- */
+    const connections = [];
+    if (doc.connections === undefined) {
+      errors.push(issue("connections", "Der Abschnitt connections fehlt.",
+        'Ergänze "connections" mit dem Ablauf, z. B. [ { "from": "schritt_a", "to": "schritt_b" } ].'));
+    } else if (!Array.isArray(doc.connections)) {
+      errors.push(issue("connections", "connections ist " + typeName(doc.connections) + ", erwartet wird eine Liste.",
+        'Schreibe "connections": [ { "from": "…", "to": "…" } ].'));
+    } else if (doc.connections.length === 0 && stepByKey.size > 1) {
+      errors.push(issue("connections", "connections ist leer, es gibt aber mehrere Schritte.",
+        "Verbinde die Schritte in der Reihenfolge des Ablaufs; daraus entsteht das Diagramm."));
+    } else {
+      const seen = new Set();
+      doc.connections.forEach((conn, i) => {
+        const at = "connections[" + i + "]";
+        if (typeof conn !== "object" || conn === null || Array.isArray(conn)) {
+          errors.push(issue(at, "Eintrag ist " + typeName(conn) + ", erwartet wird ein Objekt.",
+            'Schreibe { "from": "…", "to": "…", "label": "…" }.'));
+          return;
+        }
+        const from = isText(conn.from) ? conn.from.trim() : null;
+        const to = isText(conn.to) ? conn.to.trim() : null;
+        if (!from) {
+          errors.push(issue(at + ".from", "Das Feld from fehlt oder ist leer.",
+            "Setze from auf den key des Schritts, von dem der Ablauf ausgeht."));
+        } else if (!stepByKey.has(from)) {
+          errors.push(issue(at + ".from", "Der Schlüssel \"" + from + "\" kommt in steps nicht vor.",
+            "Vorhandene Schlüssel: " + Array.from(stepByKey.keys()).map((k) => '"' + k + '"').join(", ") +
+            ". Korrigiere from oder ergänze den fehlenden Schritt."));
+        }
+        if (!to) {
+          errors.push(issue(at + ".to", "Das Feld to fehlt oder ist leer.",
+            "Setze to auf den key des Folgeschritts."));
+        } else if (!stepByKey.has(to)) {
+          errors.push(issue(at + ".to", "Der Schlüssel \"" + to + "\" kommt in steps nicht vor.",
+            "Vorhandene Schlüssel: " + Array.from(stepByKey.keys()).map((k) => '"' + k + '"').join(", ") +
+            ". Korrigiere to oder ergänze den fehlenden Schritt."));
+        }
+        if (from && to && from === to) {
+          errors.push(issue(at, "Der Schritt \"" + from + "\" verweist auf sich selbst.",
+            "Eine Verbindung führt immer zu einem anderen Schritt; entferne sie oder korrigiere das Ziel."));
+          return;
+        }
+        if (conn.label !== undefined && typeof conn.label !== "string") {
+          notes.push(issue(at + ".label", "label ist " + typeName(conn.label) + " statt Text.",
+            "Gib die Beschriftung als Text an, z. B. \"Ja\"."));
+        }
+        const pair = from + "→" + to;
+        if (from && to && stepByKey.has(from) && stepByKey.has(to)) {
+          if (seen.has(pair)) {
+            notes.push(issue(at, "Die Verbindung " + pair + " ist doppelt vorhanden.",
+              "Führe je Richtung nur eine Verbindung; nutze label, um Zweige zu unterscheiden."));
+            return;
+          }
+          seen.add(pair);
+          connections.push({
+            id: uid("conn"),
+            from: stepByKey.get(from).id,
+            to: stepByKey.get(to).id,
+            label: typeof conn.label === "string" ? conn.label.trim() : "",
+          });
+        }
+      });
+    }
+
+    /* ---- fachliche Plausibilität (nur Hinweise) ----
+       Nur sinnvoll, wenn die Struktur stimmt: Sind Schritte wegen eines Fehlers
+       verworfen worden, wären die Folgerungen daraus (kein Start, nicht
+       erreichbar …) irreführend und würden die eigentliche Ursache zudecken. */
+    if (!errors.length && stepByKey.size) {
+      const steps = Array.from(stepByKey.values());
+      const starts = steps.filter((s) => s.type === "start");
+      if (starts.length === 0) {
+        notes.push(issue("steps", 'Kein Schritt hat type "start".',
+          'Markiere den auslösenden Schritt mit "type": "start".'));
+      } else if (starts.length > 1) {
+        notes.push(issue("steps", "Es gibt " + starts.length + ' Schritte mit type "start" (' +
+          starts.map((s) => s.key).join(", ") + ").",
+          "Ein Prozess hat genau einen Startpunkt; setze die übrigen auf \"task\"."));
+      }
+      if (!steps.some((s) => s.type === "end")) {
+        notes.push(issue("steps", 'Kein Schritt hat type "end".',
+          'Markiere jeden Abschluss des Ablaufs mit "type": "end".'));
+      }
+
+      const outgoing = new Map(steps.map((s) => [s.id, []]));
+      const incoming = new Map(steps.map((s) => [s.id, 0]));
+      connections.forEach((c) => {
+        if (outgoing.has(c.from)) outgoing.get(c.from).push(c);
+        if (incoming.has(c.to)) incoming.set(c.to, incoming.get(c.to) + 1);
+      });
+      steps.forEach((s) => {
+        const outs = outgoing.get(s.id) || [];
+        if (s.type === "decision") {
+          if (outs.length < 2) {
+            notes.push(issue("steps (" + s.key + ")", "Der Entscheidungsschritt hat nur " + outs.length + " ausgehende Verbindung(en).",
+              "Eine Entscheidung braucht mindestens zwei Zweige, jeder mit einem label wie \"Ja\" bzw. \"Nein\"."));
+          } else if (outs.some((c) => !c.label)) {
+            notes.push(issue("steps (" + s.key + ")", "Nicht alle Zweige der Entscheidung haben ein label.",
+              "Beschrifte jeden ausgehenden Zweig, damit das Diagramm lesbar bleibt."));
+          }
+        }
+        if (s.type !== "start" && incoming.get(s.id) === 0) {
+          notes.push(issue("steps (" + s.key + ")", "Der Schritt ist über keine Verbindung erreichbar.",
+            "Ergänze eine Verbindung, die zu diesem Schritt führt, oder entferne ihn."));
+        }
+        if (s.type !== "end" && outs.length === 0) {
+          notes.push(issue("steps (" + s.key + ")", "Der Schritt hat keine ausgehende Verbindung.",
+            'Ergänze den Folgeschritt oder kennzeichne den Schritt mit "type": "end".'));
+        }
+      });
+
+      const missingSipoc = steps.filter((s) => !s.supplier || !s.input || !s.output || !s.customer);
+      if (missingSipoc.length) {
+        notes.push(issue("steps", missingSipoc.length + " von " + steps.length +
+          " Schritten haben nicht alle vier SIPOC-Felder gefüllt (" +
+          missingSipoc.slice(0, 5).map((s) => s.key).join(", ") + (missingSipoc.length > 5 ? ", …" : "") + ").",
+          "Fülle supplier, input, output und customer für jeden Schritt — sie sind der Kern der SIPOC-Sicht."));
+      }
+    }
+
+    if (errors.length) return { ok: false, errors, notes, project: null };
+
+    const lanes = Array.from(laneByName.values());
+    const usedLanes = new Set(Array.from(stepByKey.values()).map((s) => s.lane));
+    lanes.filter((l) => !usedLanes.has(l.id)).forEach((l) => {
+      notes.push(issue("lanes (" + l.name + ")", "Dem Akteur ist kein Prozessschritt zugeordnet.",
+        "Ordne ihm einen Schritt zu oder entferne ihn aus lanes."));
+    });
+
+    const project = {
+      id: uid("proj"),
+      name: projectName,
+      updatedAt: Date.now(),
+      lanes,
+      steps: Array.from(stepByKey.values()).map((s) => {
+        const copy = Object.assign({}, s);
+        delete copy.key;
+        return copy;
+      }),
+      connections,
+    };
+    return { ok: true, errors, notes, project };
+  }
+
+  // Formuliert das Prüfergebnis als Arbeitsauftrag zurück an den Agenten.
+  function formatAgentReport(result) {
+    const lines = [];
+    if (result.ok) {
+      lines.push("Der Import in SIPOC Swimlane Studio war erfolgreich.");
+      if (result.notes.length) {
+        lines.push("");
+        lines.push("Folgende Punkte solltest du beim nächsten Mal besser machen:");
+        result.notes.forEach((n, i) => {
+          lines.push((i + 1) + ". [" + n.path + "] " + n.message + " → " + n.fix);
+        });
+      }
+      return lines.join("\n");
+    }
+
+    lines.push("Der Import in SIPOC Swimlane Studio ist fehlgeschlagen.");
+    lines.push("Korrigiere die folgenden Punkte und gib danach das VOLLSTÄNDIGE, korrigierte JSON erneut aus –");
+    lines.push("ohne Erklärtext, ohne Markdown-Codeblock und ohne nur den geänderten Ausschnitt zu senden.");
+    lines.push("");
+    lines.push("ZU BEHEBEN (" + result.errors.length + "):");
+    result.errors.forEach((e, i) => {
+      lines.push((i + 1) + ". Fundstelle " + e.path);
+      lines.push("   Problem:  " + e.message);
+      lines.push("   Korrektur: " + e.fix);
+    });
+    if (result.notes.length) {
+      lines.push("");
+      lines.push("ZUSÄTZLICHE HINWEISE (" + result.notes.length + ", nicht blockierend):");
+      result.notes.forEach((n, i) => {
+        lines.push((i + 1) + ". [" + n.path + "] " + n.message + " → " + n.fix);
+      });
+    }
+    lines.push("");
+    lines.push("Erwartetes Format zur Erinnerung:");
+    lines.push('{ "format": "' + AGENT_FORMAT_ID + '", "version": 1,');
+    lines.push('  "project": { "name": "…" },');
+    lines.push('  "lanes": [ { "name": "…", "description": "…" } ],');
+    lines.push('  "steps": [ { "key": "…", "name": "…", "lane": "<lanes[].name>", "type": "start|task|decision|end",');
+    lines.push('              "supplier": "…", "input": "…", "output": "…", "customer": "…" } ],');
+    lines.push('  "connections": [ { "from": "<step.key>", "to": "<step.key>", "label": "…" } ] }');
+    return lines.join("\n");
+  }
+
   /* ------------------------------------------- Standalone-Datei erzeugen */
 
   // Baut aus der laufenden Seite eine einzelne, in sich geschlossene
@@ -1243,6 +1823,104 @@
     });
   }
 
+  /* ------------------------------------------ Oberfläche: Import vom Agenten */
+
+  let agentResult = null;
+
+  function renderAgentPrompt() {
+    const el = document.getElementById("agentPromptText");
+    if (el && !el.textContent.trim()) el.textContent = AGENT_PROMPT;
+  }
+
+  function issueCard(item, kind) {
+    return `<div class="issue issue-${kind}">
+      <div class="issue-head">
+        <span class="issue-badge">${kind === "error" ? "Fehler" : "Hinweis"}</span>
+        <code class="issue-path">${escapeHtml(item.path)}</code>
+      </div>
+      <div class="issue-message">${escapeHtml(item.message)}</div>
+      <div class="issue-fix"><strong>Korrektur:</strong> ${escapeHtml(item.fix)}</div>
+    </div>`;
+  }
+
+  function renderAgentResult() {
+    const box = document.getElementById("agentResult");
+    if (!box) return;
+    if (!agentResult) {
+      box.innerHTML = `<div class="agent-placeholder">Noch nichts geprüft. Füge die Antwort des Agenten oben ein und wähle „Prüfen“.</div>`;
+      return;
+    }
+
+    const r = agentResult;
+    const head = r.ok
+      ? `<div class="agent-verdict agent-verdict-ok">
+           <strong>Format in Ordnung.</strong>
+           ${escapeHtml(String(r.project.lanes.length))} Akteure ·
+           ${escapeHtml(String(r.project.steps.length))} Prozessschritte ·
+           ${escapeHtml(String(r.project.connections.length))} Verbindungen
+           ${r.notes.length ? " · " + r.notes.length + " Hinweis(e)" : ""}
+         </div>`
+      : `<div class="agent-verdict agent-verdict-error">
+           <strong>${escapeHtml(String(r.errors.length))} Beanstandung(en).</strong>
+           Der Agent muss nachbessern — gib ihm den Bericht unten zurück.
+         </div>`;
+
+    const actions = `<div class="agent-result-actions">
+        ${r.ok ? `<button id="importAgentBtn" class="btn btn-primary" type="button">Als neues Projekt übernehmen</button>` : ""}
+        <button id="copyAgentReportBtn" class="btn btn-ghost" type="button">
+          ${r.ok ? "Rückmeldung für den Agenten kopieren" : "Fehlerbericht für den Agenten kopieren"}
+        </button>
+      </div>`;
+
+    const list =
+      r.errors.map((e) => issueCard(e, "error")).join("") +
+      r.notes.map((n) => issueCard(n, "note")).join("");
+
+    const report = `<details class="agent-report"${r.ok ? "" : " open"}>
+        <summary>Wortlaut der Rückmeldung an den Agenten</summary>
+        <pre class="code-block code-block-small">${escapeHtml(formatAgentReport(r))}</pre>
+      </details>`;
+
+    box.innerHTML = head + actions + (list ? `<div class="issue-list">${list}</div>` : "") + report;
+
+    const importBtn = document.getElementById("importAgentBtn");
+    if (importBtn) importBtn.addEventListener("click", importAgentProject);
+    const copyBtn = document.getElementById("copyAgentReportBtn");
+    if (copyBtn) copyBtn.addEventListener("click", () => copyText(formatAgentReport(agentResult), "Rückmeldung kopiert."));
+  }
+
+  function checkAgentInput() {
+    const input = document.getElementById("agentInput");
+    agentResult = checkAgentPayload(input ? input.value : "");
+    renderAgentResult();
+    if (agentResult.ok) showToast("Format geprüft — Daten können übernommen werden.");
+    else showToast(agentResult.errors.length + " Beanstandung(en) gefunden.", "warn");
+  }
+
+  function importAgentProject() {
+    if (!agentResult || !agentResult.ok || !agentResult.project) return;
+    const project = agentResult.project;
+    store.projects.push(project);
+    store.currentProjectId = project.id;
+    touch();
+    agentResult = null;
+    const input = document.getElementById("agentInput");
+    if (input) input.value = "";
+    renderAll();
+    showSection("sipoc");
+    showToast("Prozess „" + project.name + "“ übernommen.");
+  }
+
+  async function copyText(text, successMessage) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(successMessage);
+    } catch (e) {
+      downloadFile("sipoc-agent-text.txt", text, "text/plain;charset=utf-8");
+      showToast("Zwischenablage nicht verfügbar — als Datei heruntergeladen.");
+    }
+  }
+
   let currentLayout = null;
 
   function applyZoom() {
@@ -1292,6 +1970,7 @@
     if (section === "sipoc") { renderStepFilter(); renderSteps(); }
     if (section === "lanes") renderLanes();
     if (section === "connections") renderConnections();
+    if (section === "agent") { renderAgentPrompt(); renderAgentResult(); }
     if (section === "diagram") { renderDiagram(); fitZoom(); }
   }
 
@@ -1453,6 +2132,19 @@
 
     on("linkFileBtn", "click", linkFile);
     on("downloadAppBtn", "click", openDownloadAppForm);
+
+    on("copyAgentPromptBtn", "click", () => copyText(AGENT_PROMPT, "Prompt kopiert — im KI-Agenten einfügen."));
+    on("downloadAgentPromptBtn", "click", () => {
+      downloadFile("sipoc-agent-prompt.md", AGENT_PROMPT, "text/markdown;charset=utf-8");
+      showToast("Prompt als Datei gespeichert.");
+    });
+    on("checkAgentBtn", "click", checkAgentInput);
+    on("clearAgentInputBtn", "click", () => {
+      const input = document.getElementById("agentInput");
+      if (input) input.value = "";
+      agentResult = null;
+      renderAgentResult();
+    });
     on("versionReloadBtn", "click", () => location.reload());
 
     on("themeToggleBtn", "click", () => {

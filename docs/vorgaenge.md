@@ -7,16 +7,20 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (02.09.2026):** 47 der 53 Vorgänge sind über
+**Stand der Prüfung (02.09.2026):** 67 der 71 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
 (Playwright/Chromium, `npm test`) — überwiegend gegen die ausgelieferte
-`index.html` per `file://`, die Vorgänge aus AP8 zusätzlich über einen
-kurzlebigen lokalen HTTP-Server, weil sie das Nachladen von Dateien
-voraussetzen wie im Hosting-Betrieb. Die übrigen 5 Vorgänge sind laut Quellcode umgesetzt, aber noch
-nicht automatisiert geprüft (v. a. Interaktion mit der File System Access API
-und dem tatsächlichen draw.io-Import, die sich in einer Kopfloser-Browser-
-Umgebung nur eingeschränkt bzw. gar nicht automatisieren lassen). Sie sind
-als offener Prüfvorgang markiert, nicht als fehlend.
+`index.html` per `file://`; die Vorgänge rund um Auslieferung, Zwischenablage
+und Agenten-Import zusätzlich über einen kurzlebigen lokalen HTTP-Server, weil
+sie das Nachladen von Dateien bzw. eine http-Herkunft voraussetzen wie im
+Hosting-Betrieb.
+
+Offen sind noch vier Vorgänge, die sich in einer kopflosen Browser-Umgebung
+nicht sinnvoll automatisieren lassen: das Verhalten bei verweigerter
+Zwischenablage (5.8), der tatsächliche Import in draw.io bzw. Confluence (5.9)
+sowie die beiden Wege über die File System Access API (6.2, 6.3), die einen
+echten Dateiauswahldialog des Betriebssystems erfordern. Sie sind als offener
+Prüfvorgang markiert, nicht als fehlend.
 
 Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert geprüft (Umsetzung laut Code vorhanden)
 
@@ -57,10 +61,10 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 | 3.6 | Schritt mit vollständigen SIPOC-Feldern (Supplier/Input/Output/Customer) anlegen | Alle vier Felder erscheinen als Kurzzusammenfassung unter dem Schrittnamen | ✅ |
 | 3.7 | Schritt mit leeren SIPOC-Feldern anlegen | Anlage funktioniert, Zusammenfassungszeile bleibt entsprechend leer/kürzer | ✅ |
 | 3.8 | Pflichtfeld „Name“ leer lassen und speichern | Browser-native Validierung verhindert Absenden | ✅ |
-| 3.9 | Schritt bearbeiten (inkl. Akteur- oder Typwechsel) | Änderungen erscheinen in Tabelle und Diagramm, Diagramm-Layout passt sich an | ◻︎ |
+| 3.9 | Schritt bearbeiten (inkl. Akteur- oder Typwechsel) | Änderungen erscheinen in Tabelle und Diagramm, Diagramm-Layout passt sich an | ✅ |
 | 3.10 | Nach Akteur filtern | Nur Schritte des gewählten Akteurs werden angezeigt; „Alle Akteure“ setzt Filter zurück | ✅ |
 | 3.11 | Schritt ohne Verbindungen löschen | Schritt wird nach Bestätigung direkt entfernt | ✅ (Teil des Aufräumens vor 5.1) |
-| 3.12 | Schritt mit bestehenden Verbindungen löschen | Zusätzlicher Hinweis auf Anzahl betroffener Verbindungen; nach Bestätigung werden Schritt **und** die betroffenen Verbindungen entfernt | ◻︎ |
+| 3.12 | Schritt mit bestehenden Verbindungen löschen | Zusätzlicher Hinweis auf Anzahl betroffener Verbindungen; nach Bestätigung werden Schritt **und** die betroffenen Verbindungen entfernt | ✅ |
 
 ## AP4 — Verbindungen
 
@@ -82,9 +86,9 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 | 5.2 | Diagramm-Reiter mit vollständigem Beispielprojekt öffnen | Alle Akteure als Zeilen, alle Schritte in der laut Verbindungen korrekten Spalte, Verzweigungen und Zusammenführungen korrekt gezeichnet | ✅ |
 | 5.3 | Zwei Schritte desselben Akteurs auf derselben Ablaufspalte (Kollisionsfall) | Schritte werden innerhalb der Zeile untereinander gestapelt, Zeilenhöhe vergrößert sich automatisch | ✅ (visuell im Screenshot bestätigt, Akteur „Fachbereich“ im Beispielprojekt) |
 | 5.4 | Zoom vergrößern/verkleinern über die Buttons | Diagrammgröße skaliert, Prozentanzeige aktualisiert sich | ✅ |
-| 5.5 | „Einpassen“ nach Fenstergrößenänderung | Zoomstufe wird automatisch neu berechnet, Diagramm passt vollständig in den sichtbaren Bereich | ◻︎ |
+| 5.5 | „Einpassen“ nach Fenstergrößenänderung | Zoomstufe wird automatisch neu berechnet, Diagramm passt vollständig in den sichtbaren Bereich | ✅ |
 | 5.6 | „Als draw.io exportieren“ | `.drawio.xml`-Datei wird heruntergeladen, enthält gültiges `mxfile`-XML mit einer `swimlane` je Akteur, typgerechten Formen je Schritt-Typ und beschrifteten Kanten | ✅ (Wohlgeformtheit und Struktur automatisiert geprüft) |
-| 5.7 | „XML kopieren“ | XML liegt in der Zwischenablage vor und kann direkt in draw.io eingefügt werden | ◻︎ |
+| 5.7 | „XML kopieren“ | XML liegt in der Zwischenablage vor und kann direkt in draw.io eingefügt werden | ✅ |
 | 5.8 | „XML kopieren“ in einem Kontext ohne Zwischenablagen-Berechtigung | Automatischer Rückfall auf Dateidownload statt Fehlermeldung | ◻︎ |
 | 5.9 | Exportierte `.drawio.xml` in draw.io/diagrams.net öffnen | Diagramm öffnet sich als natives, weiter editierbares Swimlane-Diagramm mit identischer Struktur wie die App-Vorschau | ◻︎ (nur XML-Struktur geprüft, nicht der Import in draw.io selbst) |
 
@@ -113,11 +117,33 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 | # | Vorgang | Erwartetes Ergebnis | Geprüft |
 |---|---|---|---|
 | 8.1 | „App als Datei herunterladen…“ mit „Aktuelle Daten übernehmen“ | Einzelne HTML-Datei wird erzeugt, in der Gestaltung und Programm eingebettet sind und die keine externen Dateien mehr referenziert; der aktuelle Datenbestand liegt eingebettet bei | ✅ |
-| 8.2 | Download mit „Beispielprojekt“ bzw. „Leer starten“ | Datei enthält statt der aktuellen Daten das Beispielprojekt bzw. ein einzelnes leeres Projekt | ◻︎ |
+| 8.2 | Download mit „Beispielprojekt“ bzw. „Leer starten“ | Datei enthält statt der aktuellen Daten das Beispielprojekt bzw. ein einzelnes leeres Projekt | ✅ |
 | 8.3 | Heruntergeladene Datei per Doppelklick (`file://`) öffnen | App startet ohne Internetverbindung vollständig: Gestaltung greift, übernommene Daten sind vorhanden, Diagramm und draw.io-Export funktionieren, keine JavaScript-Fehler | ✅ |
 | 8.4 | Aus der heruntergeladenen Datei heraus erneut „App als Datei herunterladen“ | Erzeugt wieder eine vollständige, eigenständige Datei — auch ohne Nachladen von Dateien | ✅ |
 | 8.5 | Seitengerüst und Programmdatei stammen aus verschiedenen Ständen (veralteter Browser-Cache) | Hinweisleiste „veraltete Programmdatei … bitte neu laden“ erscheint, statt dass Schaltflächen stillschweigend wirkungslos bleiben | ✅ |
 | 8.6 | Ein erwartetes Bedienelement fehlt im Seitengerüst | Die übrige Anwendung bleibt vollständig bedienbar; es erscheint lediglich eine Warnung in der Browser-Konsole | ✅ |
+
+## AP9 — Import vom Agent
+
+| # | Vorgang | Erwartetes Ergebnis | Geprüft |
+|---|---|---|---|
+| 9.1 | Reiter „Import vom Agent“ öffnen und Prompt kopieren | Der vollständige Prompt mit Formatbeschreibung, Regeln und Beispiel steht in der Zwischenablage | ✅ |
+| 9.2 | Prompt als Datei speichern | Der Prompt wird als `sipoc-agent-prompt.md` heruntergeladen | ✅ |
+| 9.3 | Gültige Agentenantwort einfügen und prüfen | Freigabe mit Kennzahlen (Akteure, Schritte, Verbindungen); die Schaltfläche zum Übernehmen erscheint | ✅ |
+| 9.4 | Geprüfte Antwort übernehmen | Der Prozess wird als neues, aktives Projekt angelegt und ist vollwertig: SIPOC-Tabelle, Akteure, Diagramm und draw.io-Export funktionieren | ✅ |
+| 9.5 | Antwort mit JSON-Syntaxfehler (z. B. Komma am Listenende) | Meldung mit Zeile, Spalte, Textausschnitt und den häufigsten Ursachen; kein Import möglich | ✅ |
+| 9.6 | Antwort mit Strukturfehlern (fehlende Abschnitte, falsche Datentypen, fehlende Pflichtfelder, doppelte Schlüssel) | Je Beanstandung Fundstelle, Problem und Korrekturanweisung; alle Mängel werden gemeinsam gemeldet, nicht nur der erste | ✅ |
+| 9.7 | Verweis auf einen nicht definierten Akteur oder Schrittschlüssel | Meldung nennt zusätzlich die gültige Auswahl („Definierte Akteure: …“, „Vorhandene Schlüssel: …“) | ✅ |
+| 9.8 | Tolerierbare Abweichungen: Markdown-Codeblock, Begleittext um das JSON, deutsche Typbezeichnung („Entscheidung“), Großschreibung („TASK“), abweichende Schreibweise eines Akteurs | Import gelingt trotzdem; die Abweichung wird als Hinweis an den Agenten zurückgemeldet | ✅ |
+| 9.9 | Fachliche Auffälligkeiten: kein Start, mehrere Starts, kein Ende, Entscheidung ohne zwei beschriftete Zweige, unerreichbarer Schritt, unvollständige SIPOC-Felder, Akteur ohne Schritte | Import bleibt möglich, die Punkte erscheinen als Hinweise mit Korrekturvorschlag | ✅ |
+| 9.10 | Rückmeldung für den Agenten kopieren | Der vollständige Bericht (Fundstellen, Korrekturen, Formaterinnerung) steht in der Zwischenablage | ✅ |
+| 9.11 | Eingabe leeren | Eingabefeld und Prüfergebnis werden zurückgesetzt | ✅ |
+| 9.12 | Konsistenz von Vorgabe und Prüfung | Das im Prompt abgedruckte Beispiel durchläuft die Prüfung ohne jede Beanstandung | ✅ |
+
+Die Fälle zu 9.5 bis 9.9 sind als Sammlung in
+[`tests/agent-cases.mjs`](../tests/agent-cases.mjs) hinterlegt: 47 Varianten
+einer Agentenantwort, jeweils mit dem erwarteten Urteil und der Aussage, die in
+der Rückmeldung stehen muss.
 
 ## Smoke-Test ausführen
 
