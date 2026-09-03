@@ -1,40 +1,40 @@
 {
-  "id": "proj-5b8af16e",
+  "id": "proj-d4d640e4",
   "name": "Kreditorenrechnungsprüfung",
-  "updatedAt": 1788383011745,
+  "updatedAt": 1788418681547,
   "lanes": [
     {
-      "id": "lane-c9b23774",
+      "id": "lane-a38cc880",
       "name": "Lieferant",
       "description": "Externer Rechnungssteller (Wesselmann Baustoffhandel GmbH)",
       "color": "#0a84ff"
     },
     {
-      "id": "lane-cbd0fb4d",
+      "id": "lane-6b64f8a4",
       "name": "Rechnungseingang",
       "description": "Zentrale Poststelle / E-Invoicing-Eingang",
       "color": "#34c759"
     },
     {
-      "id": "lane-232b62e5",
+      "id": "lane-c6ca5ce8",
       "name": "Kreditorenbuchhaltung",
       "description": "Team Kreditoren der Finanzbuchhaltung",
       "color": "#ff9500"
     },
     {
-      "id": "lane-a1f8b3e8",
+      "id": "lane-f7d27154",
       "name": "Fachbereich",
       "description": "Projektleitung / Kostenstellenverantwortliche",
       "color": "#af52de"
     },
     {
-      "id": "lane-0c86f186",
+      "id": "lane-60b831c4",
       "name": "Geschäftsführung",
       "description": "Freigabeinstanz für Rechnungen über 5.000 €",
       "color": "#30b0c7"
     },
     {
-      "id": "lane-d511b239",
+      "id": "lane-cce7b1bb",
       "name": "Finanzsystem",
       "description": "Zahlungsverkehr im ERP (automatisierter Zahllauf)",
       "color": "#ff375f"
@@ -42,232 +42,270 @@
   ],
   "steps": [
     {
-      "id": "step-e3b27909",
-      "lane": "lane-c9b23774",
+      "id": "step-2b181109",
+      "lane": "lane-a38cc880",
       "type": "start",
       "name": "Rechnung erstellen und versenden",
       "supplier": "Wesselmann Baustoffhandel GmbH",
       "input": "Leistungsnachweis, Aufmaß, Lieferschein",
       "output": "Rechnung (PDF per E-Mail bzw. Papierpost)",
       "customer": "Rechnungseingang",
-      "description": "Der Lieferant stellt nach erbrachter Leistung eine Rechnung mit Bezug auf die Bestellnummer aus."
+      "description": "Der Lieferant stellt nach erbrachter Leistung eine Rechnung mit Bezug auf die Bestellnummer aus.",
+      "inputFrom": []
     },
     {
-      "id": "step-357ca8f8",
-      "lane": "lane-cbd0fb4d",
+      "id": "step-5d3c1792",
+      "lane": "lane-6b64f8a4",
       "type": "task",
       "name": "Rechnung erfassen und digitalisieren",
       "supplier": "Wesselmann Baustoffhandel GmbH",
       "input": "Eingehende Papier- oder PDF-Rechnung",
       "output": "Digitalisierte Rechnung mit Eingangsstempel und Barcode",
       "customer": "Kreditorenbuchhaltung",
-      "description": "Posteingang scannt Papierrechnungen bzw. übernimmt E-Rechnungen automatisiert in die Workflow-Ablage."
+      "description": "Posteingang scannt Papierrechnungen bzw. übernimmt E-Rechnungen automatisiert in die Workflow-Ablage.",
+      "inputFrom": [
+        "step-2b181109"
+      ]
     },
     {
-      "id": "step-642032e7",
-      "lane": "lane-232b62e5",
+      "id": "step-4152af0e",
+      "lane": "lane-c6ca5ce8",
       "type": "task",
       "name": "Rechnung im Finanzsystem anlegen",
       "supplier": "Rechnungseingang",
       "input": "Digitalisierte Rechnung",
       "output": "Rechnungsbeleg mit Belegnummer",
       "customer": "Kreditorenbuchhaltung",
-      "description": "Erfassung der Kopfdaten (Lieferant, Betrag, Fälligkeit, Bestellbezug) im Finanzsystem."
+      "description": "Erfassung der Kopfdaten (Lieferant, Betrag, Fälligkeit, Bestellbezug) im Finanzsystem.",
+      "inputFrom": [
+        "step-5d3c1792"
+      ]
     },
     {
-      "id": "step-6457e5b7",
-      "lane": "lane-232b62e5",
+      "id": "step-c6c9fd26",
+      "lane": "lane-c6ca5ce8",
       "type": "decision",
       "name": "Formalprüfung vollständig?",
       "supplier": "Kreditorenbuchhaltung",
       "input": "Rechnungsbeleg, Bestelldaten",
       "output": "Prüfprotokoll (Bestellnummer, Steuernummer, Kontierung)",
       "customer": "Kreditorenbuchhaltung",
-      "description": "Prüfung, ob alle Pflichtangaben und der Bestellbezug vorhanden sind."
+      "description": "Prüfung, ob alle Pflichtangaben und der Bestellbezug vorhanden sind.",
+      "inputFrom": [
+        "step-4152af0e"
+      ]
     },
     {
-      "id": "step-312c1716",
-      "lane": "lane-232b62e5",
+      "id": "step-4dc486a7",
+      "lane": "lane-c6ca5ce8",
       "type": "task",
       "name": "Rückfrage an Lieferanten klären",
       "supplier": "Kreditorenbuchhaltung",
       "input": "Unvollständige Rechnungsangaben",
       "output": "Korrigierte bzw. ergänzte Rechnung",
       "customer": "Wesselmann Baustoffhandel GmbH",
-      "description": "Bei fehlenden Angaben wird der Lieferant zur Korrektur aufgefordert; die Rechnung wird danach erneut geprüft."
+      "description": "Bei fehlenden Angaben wird der Lieferant zur Korrektur aufgefordert; die Rechnung wird danach erneut geprüft.",
+      "inputFrom": [
+        "step-c6c9fd26"
+      ]
     },
     {
-      "id": "step-50aec2bb",
-      "lane": "lane-a1f8b3e8",
+      "id": "step-59896677",
+      "lane": "lane-f7d27154",
       "type": "decision",
       "name": "Leistung erbracht und mengenmäßig korrekt?",
       "supplier": "Kreditorenbuchhaltung",
       "input": "Rechnungsbeleg, Aufmaß / Lieferschein",
       "output": "Sachliches Prüfergebnis",
       "customer": "Fachbereich",
-      "description": "Der Kostenstellenverantwortliche bestätigt, dass die berechnete Leistung tatsächlich erbracht wurde."
+      "description": "Der Kostenstellenverantwortliche bestätigt, dass die berechnete Leistung tatsächlich erbracht wurde.",
+      "inputFrom": [
+        "step-c6c9fd26"
+      ]
     },
     {
-      "id": "step-b42feec2",
-      "lane": "lane-a1f8b3e8",
+      "id": "step-fa02a5bb",
+      "lane": "lane-f7d27154",
       "type": "end",
       "name": "Rechnung zurückweisen",
       "supplier": "Fachbereich",
       "input": "Negatives Prüfergebnis",
       "output": "Rückweisungsschreiben",
       "customer": "Wesselmann Baustoffhandel GmbH",
-      "description": "Bei nicht nachweisbarer Leistungserbringung wird die Rechnung förmlich zurückgewiesen; der Vorgang endet hier."
+      "description": "Bei nicht nachweisbarer Leistungserbringung wird die Rechnung förmlich zurückgewiesen; der Vorgang endet hier.",
+      "inputFrom": [
+        "step-59896677"
+      ]
     },
     {
-      "id": "step-af8f4634",
-      "lane": "lane-a1f8b3e8",
+      "id": "step-c7a28860",
+      "lane": "lane-f7d27154",
       "type": "decision",
       "name": "Rechnungsbetrag über 5.000 €?",
       "supplier": "Fachbereich",
       "input": "Sachlich geprüfte Rechnung",
       "output": "Erforderliche Freigabestufe",
       "customer": "Fachbereich / Geschäftsführung",
-      "description": "Bestimmt, ob die Freigabe durch den Kostenstellenverantwortlichen ausreicht oder die Geschäftsführung einbezogen werden muss."
+      "description": "Bestimmt, ob die Freigabe durch den Kostenstellenverantwortlichen ausreicht oder die Geschäftsführung einbezogen werden muss.",
+      "inputFrom": [
+        "step-59896677"
+      ]
     },
     {
-      "id": "step-41b9af2f",
-      "lane": "lane-a1f8b3e8",
+      "id": "step-7414be2e",
+      "lane": "lane-f7d27154",
       "type": "task",
       "name": "Freigabe durch Kostenstellenverantwortlichen",
       "supplier": "Fachbereich",
       "input": "Geprüfte Rechnung bis 5.000 €",
       "output": "Freigegebene Rechnung",
       "customer": "Kreditorenbuchhaltung",
-      "description": ""
+      "description": "",
+      "inputFrom": [
+        "step-c7a28860"
+      ]
     },
     {
-      "id": "step-a2fe70fd",
-      "lane": "lane-0c86f186",
+      "id": "step-ea06a74b",
+      "lane": "lane-60b831c4",
       "type": "task",
       "name": "Freigabe durch Geschäftsführung",
       "supplier": "Fachbereich",
       "input": "Geprüfte Rechnung über 5.000 €",
       "output": "Freigegebene Rechnung",
       "customer": "Kreditorenbuchhaltung",
-      "description": ""
+      "description": "",
+      "inputFrom": [
+        "step-c7a28860"
+      ]
     },
     {
-      "id": "step-be985d25",
-      "lane": "lane-232b62e5",
+      "id": "step-fd1f20d8",
+      "lane": "lane-c6ca5ce8",
       "type": "task",
       "name": "Zahlungslauf einplanen",
       "supplier": "Fachbereich / Geschäftsführung",
       "input": "Freigegebene Rechnung",
       "output": "Zahlungsvorschlag im Zahllauf",
       "customer": "Finanzsystem",
-      "description": ""
+      "description": "",
+      "inputFrom": [
+        "step-7414be2e",
+        "step-ea06a74b"
+      ]
     },
     {
-      "id": "step-d0a4b258",
-      "lane": "lane-d511b239",
+      "id": "step-f7d5e77a",
+      "lane": "lane-cce7b1bb",
       "type": "task",
       "name": "Zahlung ausführen (SEPA-Überweisung)",
       "supplier": "Kreditorenbuchhaltung",
       "input": "Zahlungsvorschlag",
       "output": "Zahlungsavis, Kontoauszugsbuchung",
       "customer": "Wesselmann Baustoffhandel GmbH",
-      "description": ""
+      "description": "",
+      "inputFrom": [
+        "step-fd1f20d8"
+      ]
     },
     {
-      "id": "step-4d77bf57",
-      "lane": "lane-232b62e5",
+      "id": "step-a14e8b68",
+      "lane": "lane-c6ca5ce8",
       "type": "end",
       "name": "Vorgang abschließen und archivieren",
       "supplier": "Finanzsystem",
       "input": "Zahlungsbestätigung",
       "output": "Revisionssicher archivierter Rechnungsvorgang",
       "customer": "Revision / Wirtschaftsprüfung",
-      "description": "Nach erfolgter Zahlung wird der vollständige Vorgang GoBD-konform archiviert."
+      "description": "Nach erfolgter Zahlung wird der vollständige Vorgang GoBD-konform archiviert.",
+      "inputFrom": [
+        "step-f7d5e77a"
+      ]
     }
   ],
   "connections": [
     {
-      "id": "conn-3a371239",
-      "from": "step-e3b27909",
-      "to": "step-357ca8f8",
+      "id": "conn-89ec1241",
+      "from": "step-2b181109",
+      "to": "step-5d3c1792",
       "label": ""
     },
     {
-      "id": "conn-9b83e46c",
-      "from": "step-357ca8f8",
-      "to": "step-642032e7",
+      "id": "conn-8f28f20a",
+      "from": "step-5d3c1792",
+      "to": "step-4152af0e",
       "label": ""
     },
     {
-      "id": "conn-dbfa8717",
-      "from": "step-642032e7",
-      "to": "step-6457e5b7",
+      "id": "conn-6e780113",
+      "from": "step-4152af0e",
+      "to": "step-c6c9fd26",
       "label": ""
     },
     {
-      "id": "conn-03da7956",
-      "from": "step-6457e5b7",
-      "to": "step-312c1716",
+      "id": "conn-ab303283",
+      "from": "step-c6c9fd26",
+      "to": "step-4dc486a7",
       "label": "Nein"
     },
     {
-      "id": "conn-c3d33b94",
-      "from": "step-312c1716",
-      "to": "step-642032e7",
+      "id": "conn-70975850",
+      "from": "step-4dc486a7",
+      "to": "step-4152af0e",
       "label": "erneut einreichen"
     },
     {
-      "id": "conn-61be9fa1",
-      "from": "step-6457e5b7",
-      "to": "step-50aec2bb",
+      "id": "conn-c135db09",
+      "from": "step-c6c9fd26",
+      "to": "step-59896677",
       "label": "Ja"
     },
     {
-      "id": "conn-0233d1b1",
-      "from": "step-50aec2bb",
-      "to": "step-b42feec2",
+      "id": "conn-9e806c70",
+      "from": "step-59896677",
+      "to": "step-fa02a5bb",
       "label": "Nein"
     },
     {
-      "id": "conn-d633a94a",
-      "from": "step-50aec2bb",
-      "to": "step-af8f4634",
+      "id": "conn-a0d04f27",
+      "from": "step-59896677",
+      "to": "step-c7a28860",
       "label": "Ja"
     },
     {
-      "id": "conn-4f3eab47",
-      "from": "step-af8f4634",
-      "to": "step-41b9af2f",
+      "id": "conn-f3332178",
+      "from": "step-c7a28860",
+      "to": "step-7414be2e",
       "label": "≤ 5.000 €"
     },
     {
-      "id": "conn-9720a745",
-      "from": "step-af8f4634",
-      "to": "step-a2fe70fd",
+      "id": "conn-2bc85fd5",
+      "from": "step-c7a28860",
+      "to": "step-ea06a74b",
       "label": "> 5.000 €"
     },
     {
-      "id": "conn-fd494616",
-      "from": "step-41b9af2f",
-      "to": "step-be985d25",
+      "id": "conn-4b341a62",
+      "from": "step-7414be2e",
+      "to": "step-fd1f20d8",
       "label": ""
     },
     {
-      "id": "conn-e16ea001",
-      "from": "step-a2fe70fd",
-      "to": "step-be985d25",
+      "id": "conn-158d15ca",
+      "from": "step-ea06a74b",
+      "to": "step-fd1f20d8",
       "label": ""
     },
     {
-      "id": "conn-43947784",
-      "from": "step-be985d25",
-      "to": "step-d0a4b258",
+      "id": "conn-16e8f94b",
+      "from": "step-fd1f20d8",
+      "to": "step-f7d5e77a",
       "label": ""
     },
     {
-      "id": "conn-8a9fcbf4",
-      "from": "step-d0a4b258",
-      "to": "step-4d77bf57",
+      "id": "conn-7744c419",
+      "from": "step-f7d5e77a",
+      "to": "step-a14e8b68",
       "label": ""
     }
   ]

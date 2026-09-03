@@ -26,6 +26,12 @@ IT-Betrieb, Onboarding, …), nicht nur für einen bestimmten Anwendungsfall.
   inklusive Reihenfolge und Farbe.
 - **Verbindungen** — verknüpft Prozessschritte zu einem Ablauf, inklusive
   Beschriftung für Entscheidungszweige (z. B. „Ja“ / „Nein“).
+- **SIPOC-Übersicht** — dieselben Daten als fünfspaltige Darstellung
+  (Supplier · Input · Process · Output · Customer) mit sichtbarer
+  Artefaktkette: Wo der Input eines Schritts aus dem Output eines anderen
+  stammt, ist die Herkunft angegeben und lässt sich als Kurve einblenden.
+- **Prozesskette** — Verkettung ganzer Prozesse untereinander samt Landkarte:
+  welcher Prozess welchem zuarbeitet und über welches Artefakt.
 - **Swimlane-Diagramm** — wird automatisch aus Akteuren, Schritten und
   Verbindungen berechnet (Spalten-Layout per Tiefensuche, inkl. Verzweigungen,
   Zusammenführungen und Rework-Schleifen als gestrichelte Rückkante) und direkt
@@ -61,9 +67,12 @@ python3 -m http.server 8080
 Alternativ per GitHub Pages hosten (Repository-Einstellungen → Pages → Branch
 `main`, Ordner `/`) und den Link mit Kolleg:innen teilen.
 
-Ein realistisches Beispielprojekt („Kreditorenrechnungsprüfung“, 6 Akteure,
-13 Prozessschritte, 14 Verbindungen inkl. Entscheidungen und Rework-Schleife)
-ist beim ersten Start bereits geladen, siehe [`examples/`](examples/).
+Beim ersten Start sind bereits drei aufeinander aufbauende Beispielprozesse
+eines fiktiven Ingenieurbüros geladen — „Beschaffungsantrag freigeben“,
+„Kreditorenrechnungsprüfung“ (6 Akteure, 13 Schritte, 14 Verbindungen inkl.
+Entscheidungen und Rework-Schleife) und „Monatsabschluss Kreditoren“ —
+inklusive Artefaktketten und der Verkettung untereinander, siehe
+[`examples/`](examples/).
 
 ## Datenhaltung — wie und wo gespeichert wird
 
@@ -127,9 +136,15 @@ Ein Projekt besteht aus:
 - **`lanes`** — Akteure/Swimlanes (`name`, `description`, `color`)
 - **`steps`** — Prozessschritte (`name`, `lane`, `type`: Start/Aufgabe/
   Entscheidung/Ende, sowie `supplier`, `input`, `output`, `customer`,
-  `description` für die SIPOC-Sicht)
+  `description` für die SIPOC-Sicht) sowie `inputFrom` — die Schritte, aus
+  deren Output sich der Input speist (Artefaktkette)
 - **`connections`** — gerichtete Verbindungen zwischen Schritten
   (`from`, `to`, optionales `label`)
+
+Projektübergreifend kommt **`processLinks`** hinzu: die Übergaben zwischen
+ganzen Prozessen (`fromProject`, `toProject`, optional `fromStep`/`toStep`,
+`artifact`, `description`). Sie sind Teil des Gesamt-Datenbestands, nicht des
+einzelnen Projekt-Exports.
 
 Die Spaltenposition im Diagramm wird **nicht** manuell gepflegt, sondern aus
 den Verbindungen berechnet (längster Pfad ab den Startpunkten); Zyklen
@@ -148,6 +163,35 @@ examples/     Beispielprojekt als .sipoc.json und bereits exportierte
 docs/         Vorgangskatalog und Screenshots
 ```
 
+## SIPOC-Übersicht und Prozesskette
+
+Die SIPOC-Tabelle lässt sich zwischen zwei Sichten umschalten: der **Liste**
+zum Pflegen und der **Übersicht** zum Lesen. Die Übersicht stellt jede Zeile
+als klassische SIPOC-Zeile dar — Supplier, Input, Process, Output, Customer
+nebeneinander — und macht dabei sichtbar, wie die Zeilen zusammenhängen.
+
+![SIPOC-Übersicht](docs/images/sipoc-uebersicht.png)
+
+Dafür kann bei jedem Schritt hinterlegt werden, **aus wessen Output sich sein
+Input speist** (Feld „Input stammt aus dem Output von“, Mehrfachauswahl). In
+der Übersicht erscheint die Herkunft dann als Angabe in der Input-Karte, am
+Output steht, wie viele Schritte er speist. Über „Ketten einblenden“ oder durch
+Überfahren einer Zeile werden die Verbindungen als Kurven sichtbar; ein Klick
+auf eine Herkunftsangabe springt zur Quelle. Im Ruhezustand bleiben die Kurven
+ausgeblendet, damit die Ansicht ruhig bleibt.
+
+Eine Ebene darüber steht die **Prozesskette**: Dort wird festgehalten, welcher
+Prozess welchem zuarbeitet — mit dem übergebenen Artefakt und wahlweise dem
+genauen Schritt, an dem die Übergabe stattfindet. Daraus entsteht eine
+Landkarte der Prozesslandschaft; ein Klick auf eine Karte wechselt zum
+jeweiligen Prozess.
+
+![Prozesskette](docs/images/prozesskette.png)
+
+Der mitgelieferte Beispielbestand zeigt beides an drei aufeinander aufbauenden
+Prozessen eines fiktiven Ingenieurbüros: „Beschaffungsantrag freigeben“ →
+„Kreditorenrechnungsprüfung“ → „Monatsabschluss Kreditoren“.
+
 ## Prozess von einem KI-Agenten erzeugen lassen
 
 Der Reiter **„Import vom Agent“** ist für den Fall gedacht, dass ein KI-Agent
@@ -158,7 +202,8 @@ erfassen. Er führt durch drei Schritte:
    erwartete Format vollständig beschreibt: Aufbau, jedes einzelne Feld mit
    Bedeutung und Pflichtangabe, die erlaubten Schritt-Typen, die inhaltlichen
    Regeln (genau ein Start, beschriftete Entscheidungszweige …) sowie ein
-   vollständiges, gültiges Beispiel. Er wird zusammen mit der eigentlichen
+   vollständiges, gültiges Beispiel. Auch die Artefaktkette kann der Agent
+   liefern (`inputFrom`). Er wird zusammen mit der eigentlichen
    Aufgabe an den Agenten gegeben.
 2. **Antwort einfügen und prüfen.** Die Antwort des Agenten wird eingefügt und
    geprüft — es wird nichts blind importiert.

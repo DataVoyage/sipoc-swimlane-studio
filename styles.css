@@ -450,6 +450,215 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 .toast.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 8px); }
 
+/* ---------- Segmented Control ---------- */
+.segmented {
+  display: inline-flex;
+  background: var(--bg-subtle);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+}
+.segmented-option {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segmented-option.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.subsection-title { font-size: 15px; margin: 26px 0 12px; }
+.hidden { display: none !important; }
+
+/* ---------- SIPOC-Übersicht ---------- */
+.sipoc-board { position: relative; }
+.sipoc-grid { position: relative; display: flex; flex-direction: column; gap: 8px; }
+
+.sipoc-header, .sipoc-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 1.25fr 1.5fr 1.25fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+.sipoc-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;               /* über den Ketten-Kurven, sonst schiebt sich beides übereinander */
+  background: var(--bg-content);
+  padding: 10px 0 8px;
+  box-shadow: 0 6px 8px -8px rgba(0, 0, 0, 0.25);
+}
+.sipoc-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 0 12px;
+}
+.sipoc-head span {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.sipoc-row {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: transform 0.12s ease;
+}
+.sipoc-row:hover { transform: translateY(-1px); }
+.sipoc-index {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; color: var(--text-tertiary);
+}
+.sipoc-cell {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  min-height: 62px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.sipoc-side { background: var(--bg-subtle); box-shadow: none; color: var(--text-secondary); }
+.sipoc-cell-empty, .sipoc-empty-text { color: var(--text-tertiary); }
+.sipoc-process {
+  border-left: 3px solid var(--type-color, var(--accent));
+  gap: 8px;
+}
+.sipoc-process-name { font-weight: 650; font-size: 13.5px; line-height: 1.35; }
+.sipoc-process-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.sipoc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.sipoc-chip {
+  border: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sipoc-chip:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.sipoc-outmark { font-size: 10.5px; color: var(--text-tertiary); font-weight: 600; }
+
+.sipoc-row-linked .sipoc-cell { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.sipoc-row-flash .sipoc-cell { animation: sipoc-flash 1.2s ease; }
+@keyframes sipoc-flash {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); }
+}
+
+/* Die Ketten liegen über den Karten, bleiben aber im Ruhezustand unsichtbar:
+   dauerhaft sichtbare Kurven quer über die Tabelle wären zu unruhig. Sie
+   erscheinen beim Überfahren einer Zeile oder über den Schalter „Ketten“. */
+.sipoc-links {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+  color: var(--accent);
+}
+.sipoc-link {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  opacity: 0;
+  marker-end: url(#sipocArrow);
+  transition: opacity 0.18s ease, stroke-width 0.18s ease;
+}
+.sipoc-grid-show-links .sipoc-link { opacity: 0.3; }
+.sipoc-link-active { opacity: 0.95 !important; stroke-width: 2.4; }
+
+/* ---------- Prozesskette ---------- */
+.chain-map-wrapper {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px;
+  overflow: auto;
+}
+.chain-map { min-height: 120px; }
+.chain-edge { fill: none; stroke: var(--text-tertiary); stroke-width: 1.8; }
+.chain-edge-label-bg { fill: var(--bg-elevated); stroke: var(--separator); }
+.chain-edge-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  fill: var(--text-secondary);
+}
+.chain-card {
+  box-sizing: border-box;
+  height: 100%;
+  background: var(--bg-subtle);
+  border: 1.5px solid var(--separator);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.chain-card:hover { border-color: var(--accent); }
+.chain-card-active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent);
+}
+.chain-card-name { font-weight: 650; font-size: 13.5px; line-height: 1.3; }
+.chain-card-meta { font-size: 11px; color: var(--text-secondary); }
+.chain-card-lanes { font-size: 10.5px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Auswahl der Artefaktherkunft im Formular ---------- */
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid var(--separator-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  background: var(--bg-input);
+}
+.source-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.source-option:hover { background: var(--bg-subtle); }
+.source-option input { margin-top: 2px; accent-color: var(--accent); }
+.source-option-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.source-option-name { font-size: 12.5px; font-weight: 600; }
+.source-option-out { font-size: 11px; color: var(--text-secondary); }
+
 /* ---------- Import vom Agent ---------- */
 .agent-step {
   background: var(--bg-card);

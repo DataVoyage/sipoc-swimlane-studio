@@ -1,0 +1,699 @@
+{
+  "projects": [
+    {
+      "id": "proj-7891cd6c",
+      "name": "Beschaffungsantrag freigeben",
+      "updatedAt": 1788418681546,
+      "lanes": [
+        {
+          "id": "lane-1f60f6dd",
+          "name": "Projektleitung",
+          "description": "Bedarfsträger im Ingenieurprojekt",
+          "color": "#af52de"
+        },
+        {
+          "id": "lane-f8438cd3",
+          "name": "Einkauf",
+          "description": "Zentraler Einkauf",
+          "color": "#ff9500"
+        },
+        {
+          "id": "lane-5e1ef3d3",
+          "name": "Geschäftsführung",
+          "description": "Freigabeinstanz ab 10.000 €",
+          "color": "#30b0c7"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-b4df2efc",
+          "lane": "lane-1f60f6dd",
+          "type": "start",
+          "name": "Bedarf im Projekt feststellen",
+          "supplier": "Projektteam",
+          "input": "Leistungsverzeichnis, Terminplan",
+          "output": "Bedarfsmeldung mit Mengengerüst",
+          "customer": "Projektleitung",
+          "description": "Aus der Bauablaufplanung ergibt sich ein Material- oder Leistungsbedarf.",
+          "inputFrom": []
+        },
+        {
+          "id": "step-e2ec0145",
+          "lane": "lane-1f60f6dd",
+          "type": "task",
+          "name": "Bestellanforderung erfassen",
+          "supplier": "Projektleitung",
+          "input": "Bedarfsmeldung mit Mengengerüst",
+          "output": "Bestellanforderung mit Kostenstelle",
+          "customer": "Einkauf",
+          "description": "",
+          "inputFrom": [
+            "step-b4df2efc"
+          ]
+        },
+        {
+          "id": "step-d06551a9",
+          "lane": "lane-f8438cd3",
+          "type": "task",
+          "name": "Angebote einholen und vergleichen",
+          "supplier": "Projektleitung",
+          "input": "Bestellanforderung mit Kostenstelle",
+          "output": "Angebotsspiegel mit Vergabevorschlag",
+          "customer": "Einkauf",
+          "description": "",
+          "inputFrom": [
+            "step-e2ec0145"
+          ]
+        },
+        {
+          "id": "step-1871865b",
+          "lane": "lane-f8438cd3",
+          "type": "decision",
+          "name": "Auftragswert über 10.000 €?",
+          "supplier": "Einkauf",
+          "input": "Angebotsspiegel mit Vergabevorschlag",
+          "output": "Erforderliche Freigabestufe",
+          "customer": "Einkauf / Geschäftsführung",
+          "description": "",
+          "inputFrom": [
+            "step-d06551a9"
+          ]
+        },
+        {
+          "id": "step-0b422e7b",
+          "lane": "lane-5e1ef3d3",
+          "type": "task",
+          "name": "Vergabe freigeben",
+          "supplier": "Einkauf",
+          "input": "Vergabevorschlag über 10.000 €",
+          "output": "Freigegebener Vergabevorschlag",
+          "customer": "Einkauf",
+          "description": "",
+          "inputFrom": [
+            "step-1871865b"
+          ]
+        },
+        {
+          "id": "step-ec5e3fe1",
+          "lane": "lane-f8438cd3",
+          "type": "task",
+          "name": "Bestellung beim Lieferanten auslösen",
+          "supplier": "Einkauf / Geschäftsführung",
+          "input": "Freigegebener Vergabevorschlag",
+          "output": "Bestellung mit Bestellnummer",
+          "customer": "Wesselmann Baustoffhandel GmbH",
+          "description": "",
+          "inputFrom": [
+            "step-0b422e7b",
+            "step-1871865b"
+          ]
+        },
+        {
+          "id": "step-8af20998",
+          "lane": "lane-f8438cd3",
+          "type": "end",
+          "name": "Auftragsbestätigung ablegen",
+          "supplier": "Wesselmann Baustoffhandel GmbH",
+          "input": "Auftragsbestätigung des Lieferanten",
+          "output": "Verbindliche Bestellung mit Bestellnummer",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "Die abgelegte Bestellung ist später die Grundlage der Rechnungsprüfung.",
+          "inputFrom": [
+            "step-ec5e3fe1"
+          ]
+        }
+      ],
+      "connections": [
+        {
+          "id": "conn-484acb38",
+          "from": "step-b4df2efc",
+          "to": "step-e2ec0145",
+          "label": ""
+        },
+        {
+          "id": "conn-ee8a08ce",
+          "from": "step-e2ec0145",
+          "to": "step-d06551a9",
+          "label": ""
+        },
+        {
+          "id": "conn-63f928c7",
+          "from": "step-d06551a9",
+          "to": "step-1871865b",
+          "label": ""
+        },
+        {
+          "id": "conn-12c7c31a",
+          "from": "step-1871865b",
+          "to": "step-0b422e7b",
+          "label": "Ja"
+        },
+        {
+          "id": "conn-e7f9d747",
+          "from": "step-1871865b",
+          "to": "step-ec5e3fe1",
+          "label": "Nein"
+        },
+        {
+          "id": "conn-fee91bb6",
+          "from": "step-0b422e7b",
+          "to": "step-ec5e3fe1",
+          "label": ""
+        },
+        {
+          "id": "conn-80a4960c",
+          "from": "step-ec5e3fe1",
+          "to": "step-8af20998",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "id": "proj-d4d640e4",
+      "name": "Kreditorenrechnungsprüfung",
+      "updatedAt": 1788418682695,
+      "lanes": [
+        {
+          "id": "lane-a38cc880",
+          "name": "Lieferant",
+          "description": "Externer Rechnungssteller (Wesselmann Baustoffhandel GmbH)",
+          "color": "#0a84ff"
+        },
+        {
+          "id": "lane-6b64f8a4",
+          "name": "Rechnungseingang",
+          "description": "Zentrale Poststelle / E-Invoicing-Eingang",
+          "color": "#34c759"
+        },
+        {
+          "id": "lane-c6ca5ce8",
+          "name": "Kreditorenbuchhaltung",
+          "description": "Team Kreditoren der Finanzbuchhaltung",
+          "color": "#ff9500"
+        },
+        {
+          "id": "lane-f7d27154",
+          "name": "Fachbereich",
+          "description": "Projektleitung / Kostenstellenverantwortliche",
+          "color": "#af52de"
+        },
+        {
+          "id": "lane-60b831c4",
+          "name": "Geschäftsführung",
+          "description": "Freigabeinstanz für Rechnungen über 5.000 €",
+          "color": "#30b0c7"
+        },
+        {
+          "id": "lane-cce7b1bb",
+          "name": "Finanzsystem",
+          "description": "Zahlungsverkehr im ERP (automatisierter Zahllauf)",
+          "color": "#ff375f"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-2b181109",
+          "lane": "lane-a38cc880",
+          "type": "start",
+          "name": "Rechnung erstellen und versenden",
+          "supplier": "Wesselmann Baustoffhandel GmbH",
+          "input": "Leistungsnachweis, Aufmaß, Lieferschein",
+          "output": "Rechnung (PDF per E-Mail bzw. Papierpost)",
+          "customer": "Rechnungseingang",
+          "description": "Der Lieferant stellt nach erbrachter Leistung eine Rechnung mit Bezug auf die Bestellnummer aus.",
+          "inputFrom": []
+        },
+        {
+          "id": "step-5d3c1792",
+          "lane": "lane-6b64f8a4",
+          "type": "task",
+          "name": "Rechnung erfassen und digitalisieren",
+          "supplier": "Wesselmann Baustoffhandel GmbH",
+          "input": "Eingehende Papier- oder PDF-Rechnung",
+          "output": "Digitalisierte Rechnung mit Eingangsstempel und Barcode",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "Posteingang scannt Papierrechnungen bzw. übernimmt E-Rechnungen automatisiert in die Workflow-Ablage.",
+          "inputFrom": [
+            "step-2b181109"
+          ]
+        },
+        {
+          "id": "step-4152af0e",
+          "lane": "lane-c6ca5ce8",
+          "type": "task",
+          "name": "Rechnung im Finanzsystem anlegen",
+          "supplier": "Rechnungseingang",
+          "input": "Digitalisierte Rechnung",
+          "output": "Rechnungsbeleg mit Belegnummer",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "Erfassung der Kopfdaten (Lieferant, Betrag, Fälligkeit, Bestellbezug) im Finanzsystem.",
+          "inputFrom": [
+            "step-5d3c1792"
+          ]
+        },
+        {
+          "id": "step-c6c9fd26",
+          "lane": "lane-c6ca5ce8",
+          "type": "decision",
+          "name": "Formalprüfung vollständig?",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Rechnungsbeleg, Bestelldaten",
+          "output": "Prüfprotokoll (Bestellnummer, Steuernummer, Kontierung)",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "Prüfung, ob alle Pflichtangaben und der Bestellbezug vorhanden sind.",
+          "inputFrom": [
+            "step-4152af0e"
+          ]
+        },
+        {
+          "id": "step-4dc486a7",
+          "lane": "lane-c6ca5ce8",
+          "type": "task",
+          "name": "Rückfrage an Lieferanten klären",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Unvollständige Rechnungsangaben",
+          "output": "Korrigierte bzw. ergänzte Rechnung",
+          "customer": "Wesselmann Baustoffhandel GmbH",
+          "description": "Bei fehlenden Angaben wird der Lieferant zur Korrektur aufgefordert; die Rechnung wird danach erneut geprüft.",
+          "inputFrom": [
+            "step-c6c9fd26"
+          ]
+        },
+        {
+          "id": "step-59896677",
+          "lane": "lane-f7d27154",
+          "type": "decision",
+          "name": "Leistung erbracht und mengenmäßig korrekt?",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Rechnungsbeleg, Aufmaß / Lieferschein",
+          "output": "Sachliches Prüfergebnis",
+          "customer": "Fachbereich",
+          "description": "Der Kostenstellenverantwortliche bestätigt, dass die berechnete Leistung tatsächlich erbracht wurde.",
+          "inputFrom": [
+            "step-c6c9fd26"
+          ]
+        },
+        {
+          "id": "step-fa02a5bb",
+          "lane": "lane-f7d27154",
+          "type": "end",
+          "name": "Rechnung zurückweisen",
+          "supplier": "Fachbereich",
+          "input": "Negatives Prüfergebnis",
+          "output": "Rückweisungsschreiben",
+          "customer": "Wesselmann Baustoffhandel GmbH",
+          "description": "Bei nicht nachweisbarer Leistungserbringung wird die Rechnung förmlich zurückgewiesen; der Vorgang endet hier.",
+          "inputFrom": [
+            "step-59896677"
+          ]
+        },
+        {
+          "id": "step-c7a28860",
+          "lane": "lane-f7d27154",
+          "type": "decision",
+          "name": "Rechnungsbetrag über 5.000 €?",
+          "supplier": "Fachbereich",
+          "input": "Sachlich geprüfte Rechnung",
+          "output": "Erforderliche Freigabestufe",
+          "customer": "Fachbereich / Geschäftsführung",
+          "description": "Bestimmt, ob die Freigabe durch den Kostenstellenverantwortlichen ausreicht oder die Geschäftsführung einbezogen werden muss.",
+          "inputFrom": [
+            "step-59896677"
+          ]
+        },
+        {
+          "id": "step-7414be2e",
+          "lane": "lane-f7d27154",
+          "type": "task",
+          "name": "Freigabe durch Kostenstellenverantwortlichen",
+          "supplier": "Fachbereich",
+          "input": "Geprüfte Rechnung bis 5.000 €",
+          "output": "Freigegebene Rechnung",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-c7a28860"
+          ]
+        },
+        {
+          "id": "step-ea06a74b",
+          "lane": "lane-60b831c4",
+          "type": "task",
+          "name": "Freigabe durch Geschäftsführung",
+          "supplier": "Fachbereich",
+          "input": "Geprüfte Rechnung über 5.000 €",
+          "output": "Freigegebene Rechnung",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-c7a28860"
+          ]
+        },
+        {
+          "id": "step-fd1f20d8",
+          "lane": "lane-c6ca5ce8",
+          "type": "task",
+          "name": "Zahlungslauf einplanen",
+          "supplier": "Fachbereich / Geschäftsführung",
+          "input": "Freigegebene Rechnung",
+          "output": "Zahlungsvorschlag im Zahllauf",
+          "customer": "Finanzsystem",
+          "description": "",
+          "inputFrom": [
+            "step-7414be2e",
+            "step-ea06a74b"
+          ]
+        },
+        {
+          "id": "step-f7d5e77a",
+          "lane": "lane-cce7b1bb",
+          "type": "task",
+          "name": "Zahlung ausführen (SEPA-Überweisung)",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Zahlungsvorschlag",
+          "output": "Zahlungsavis, Kontoauszugsbuchung",
+          "customer": "Wesselmann Baustoffhandel GmbH",
+          "description": "",
+          "inputFrom": [
+            "step-fd1f20d8"
+          ]
+        },
+        {
+          "id": "step-a14e8b68",
+          "lane": "lane-c6ca5ce8",
+          "type": "end",
+          "name": "Vorgang abschließen und archivieren",
+          "supplier": "Finanzsystem",
+          "input": "Zahlungsbestätigung",
+          "output": "Revisionssicher archivierter Rechnungsvorgang",
+          "customer": "Revision / Wirtschaftsprüfung",
+          "description": "Nach erfolgter Zahlung wird der vollständige Vorgang GoBD-konform archiviert.",
+          "inputFrom": [
+            "step-f7d5e77a"
+          ]
+        }
+      ],
+      "connections": [
+        {
+          "id": "conn-89ec1241",
+          "from": "step-2b181109",
+          "to": "step-5d3c1792",
+          "label": ""
+        },
+        {
+          "id": "conn-8f28f20a",
+          "from": "step-5d3c1792",
+          "to": "step-4152af0e",
+          "label": ""
+        },
+        {
+          "id": "conn-6e780113",
+          "from": "step-4152af0e",
+          "to": "step-c6c9fd26",
+          "label": ""
+        },
+        {
+          "id": "conn-ab303283",
+          "from": "step-c6c9fd26",
+          "to": "step-4dc486a7",
+          "label": "Nein"
+        },
+        {
+          "id": "conn-70975850",
+          "from": "step-4dc486a7",
+          "to": "step-4152af0e",
+          "label": "erneut einreichen"
+        },
+        {
+          "id": "conn-c135db09",
+          "from": "step-c6c9fd26",
+          "to": "step-59896677",
+          "label": "Ja"
+        },
+        {
+          "id": "conn-9e806c70",
+          "from": "step-59896677",
+          "to": "step-fa02a5bb",
+          "label": "Nein"
+        },
+        {
+          "id": "conn-a0d04f27",
+          "from": "step-59896677",
+          "to": "step-c7a28860",
+          "label": "Ja"
+        },
+        {
+          "id": "conn-f3332178",
+          "from": "step-c7a28860",
+          "to": "step-7414be2e",
+          "label": "≤ 5.000 €"
+        },
+        {
+          "id": "conn-2bc85fd5",
+          "from": "step-c7a28860",
+          "to": "step-ea06a74b",
+          "label": "> 5.000 €"
+        },
+        {
+          "id": "conn-4b341a62",
+          "from": "step-7414be2e",
+          "to": "step-fd1f20d8",
+          "label": ""
+        },
+        {
+          "id": "conn-158d15ca",
+          "from": "step-ea06a74b",
+          "to": "step-fd1f20d8",
+          "label": ""
+        },
+        {
+          "id": "conn-16e8f94b",
+          "from": "step-fd1f20d8",
+          "to": "step-f7d5e77a",
+          "label": ""
+        },
+        {
+          "id": "conn-7744c419",
+          "from": "step-f7d5e77a",
+          "to": "step-a14e8b68",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "id": "proj-7227522d",
+      "name": "Monatsabschluss Kreditoren",
+      "updatedAt": 1788418681547,
+      "lanes": [
+        {
+          "id": "lane-76afc90c",
+          "name": "Kreditorenbuchhaltung",
+          "description": "Team Kreditoren der Finanzbuchhaltung",
+          "color": "#ff9500"
+        },
+        {
+          "id": "lane-c776d74d",
+          "name": "Hauptbuchhaltung",
+          "description": "Verantwortlich für den Monatsabschluss",
+          "color": "#5856d6"
+        },
+        {
+          "id": "lane-c8ca3eb4",
+          "name": "Wirtschaftsprüfung",
+          "description": "Externe Prüfgesellschaft",
+          "color": "#ff375f"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-afec3f05",
+          "lane": "lane-76afc90c",
+          "type": "start",
+          "name": "Offene Posten zum Monatsende ermitteln",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Archivierte Rechnungsvorgänge des Monats",
+          "output": "Liste der offenen Posten",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "",
+          "inputFrom": []
+        },
+        {
+          "id": "step-b56da638",
+          "lane": "lane-76afc90c",
+          "type": "task",
+          "name": "Abgrenzungen für erbrachte, nicht berechnete Leistungen bilden",
+          "supplier": "Fachbereich",
+          "input": "Liste der offenen Posten, Leistungsstände",
+          "output": "Abgrenzungsbuchungen",
+          "customer": "Hauptbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-afec3f05"
+          ]
+        },
+        {
+          "id": "step-f1d85b07",
+          "lane": "lane-76afc90c",
+          "type": "task",
+          "name": "Saldenabstimmung mit Lieferanten durchführen",
+          "supplier": "Wesselmann Baustoffhandel GmbH",
+          "input": "Saldenbestätigungen",
+          "output": "Abgestimmte Kreditorensalden",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-afec3f05"
+          ]
+        },
+        {
+          "id": "step-90833344",
+          "lane": "lane-76afc90c",
+          "type": "decision",
+          "name": "Differenzen in der Abstimmung?",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Abgestimmte Kreditorensalden",
+          "output": "Abstimmergebnis",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-f1d85b07"
+          ]
+        },
+        {
+          "id": "step-8fdcfc85",
+          "lane": "lane-76afc90c",
+          "type": "task",
+          "name": "Differenzen klären und korrigieren",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Abweichungsliste",
+          "output": "Korrekturbuchungen",
+          "customer": "Kreditorenbuchhaltung",
+          "description": "Nach der Korrektur wird die Abstimmung erneut durchlaufen.",
+          "inputFrom": [
+            "step-90833344"
+          ]
+        },
+        {
+          "id": "step-997335f6",
+          "lane": "lane-c776d74d",
+          "type": "task",
+          "name": "Kreditorenkonten ins Hauptbuch überleiten",
+          "supplier": "Kreditorenbuchhaltung",
+          "input": "Abgestimmte Salden, Abgrenzungsbuchungen",
+          "output": "Überleitung im Hauptbuch",
+          "customer": "Hauptbuchhaltung",
+          "description": "",
+          "inputFrom": [
+            "step-b56da638",
+            "step-90833344"
+          ]
+        },
+        {
+          "id": "step-a6f43a79",
+          "lane": "lane-c776d74d",
+          "type": "end",
+          "name": "Abschlussunterlagen bereitstellen",
+          "supplier": "Hauptbuchhaltung",
+          "input": "Überleitung im Hauptbuch",
+          "output": "Abschlussmappe Kreditoren",
+          "customer": "Wirtschaftsprüfung",
+          "description": "",
+          "inputFrom": [
+            "step-997335f6"
+          ]
+        },
+        {
+          "id": "step-2d9e67e5",
+          "lane": "lane-c8ca3eb4",
+          "type": "end",
+          "name": "Belegstichprobe prüfen",
+          "supplier": "Hauptbuchhaltung",
+          "input": "Abschlussmappe Kreditoren",
+          "output": "Prüfvermerk",
+          "customer": "Geschäftsführung",
+          "description": "",
+          "inputFrom": [
+            "step-a6f43a79"
+          ]
+        }
+      ],
+      "connections": [
+        {
+          "id": "conn-d3c73bac",
+          "from": "step-afec3f05",
+          "to": "step-b56da638",
+          "label": ""
+        },
+        {
+          "id": "conn-d6efdb37",
+          "from": "step-afec3f05",
+          "to": "step-f1d85b07",
+          "label": ""
+        },
+        {
+          "id": "conn-540a4b9f",
+          "from": "step-f1d85b07",
+          "to": "step-90833344",
+          "label": ""
+        },
+        {
+          "id": "conn-41f1d6f5",
+          "from": "step-90833344",
+          "to": "step-8fdcfc85",
+          "label": "Ja"
+        },
+        {
+          "id": "conn-9c1fd4ed",
+          "from": "step-8fdcfc85",
+          "to": "step-f1d85b07",
+          "label": "erneut abstimmen"
+        },
+        {
+          "id": "conn-5e3c0061",
+          "from": "step-90833344",
+          "to": "step-997335f6",
+          "label": "Nein"
+        },
+        {
+          "id": "conn-54086011",
+          "from": "step-b56da638",
+          "to": "step-997335f6",
+          "label": ""
+        },
+        {
+          "id": "conn-9ad7af82",
+          "from": "step-997335f6",
+          "to": "step-a6f43a79",
+          "label": ""
+        },
+        {
+          "id": "conn-db200e58",
+          "from": "step-a6f43a79",
+          "to": "step-2d9e67e5",
+          "label": ""
+        }
+      ]
+    }
+  ],
+  "currentProjectId": "proj-d4d640e4",
+  "processLinks": [
+    {
+      "id": "link-6d60dbee",
+      "fromProject": "proj-7891cd6c",
+      "fromStep": "step-8af20998",
+      "toProject": "proj-d4d640e4",
+      "toStep": "step-4152af0e",
+      "artifact": "Verbindliche Bestellung mit Bestellnummer",
+      "description": "Der Bestellbezug ist Voraussetzung für die Formalprüfung der Rechnung."
+    },
+    {
+      "id": "link-8fdb366c",
+      "fromProject": "proj-d4d640e4",
+      "fromStep": "step-a14e8b68",
+      "toProject": "proj-7227522d",
+      "toStep": "step-afec3f05",
+      "artifact": "Revisionssicher archivierter Rechnungsvorgang",
+      "description": "Die gebuchten und archivierten Vorgänge sind die Grundlage des Monatsabschlusses."
+    }
+  ]
+}

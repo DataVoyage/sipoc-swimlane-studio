@@ -19,9 +19,11 @@ const gutesJson = {
     { key: "eingang", name: "Reklamation aufnehmen", lane: "Kundenservice", type: "start",
       supplier: "Kundin", input: "Reklamationsmeldung", output: "Erfasster Vorgang", customer: "Qualitätssicherung" },
     { key: "pruefen", name: "Mangel technisch bewerten", lane: "Qualitätssicherung", type: "task",
-      supplier: "Kundenservice", input: "Erfasster Vorgang", output: "Prüfbericht", customer: "Kundenservice" },
+      supplier: "Kundenservice", input: "Erfasster Vorgang", output: "Prüfbericht", customer: "Kundenservice",
+      inputFrom: ["eingang"] },
     { key: "berechtigt", name: "Reklamation berechtigt?", lane: "Qualitätssicherung", type: "decision",
-      supplier: "Qualitätssicherung", input: "Prüfbericht", output: "Entscheidung", customer: "Kundenservice" },
+      supplier: "Qualitätssicherung", input: "Prüfbericht", output: "Entscheidung", customer: "Kundenservice",
+      inputFrom: ["pruefen"] },
     { key: "ersatz", name: "Ersatzlieferung veranlassen", lane: "Kundenservice", type: "end",
       supplier: "Qualitätssicherung", input: "Positive Entscheidung", output: "Ersatzlieferung", customer: "Kundin" },
     { key: "absage", name: "Ablehnung begründen", lane: "Kundenservice", type: "end",
@@ -69,7 +71,13 @@ export const cases = [
   // Der zuerst vergebene Schritt ist hier zusätzlich fehlerhaft (unbekannter
   // Akteur) und wird verworfen — das Duplikat muss trotzdem auffallen.
   { name: "doppelter key trotz verworfenem Vorgänger", input: clone((c) => { c.steps[1].lane = "Unbekannt"; c.steps[2].key = "pruefen"; }), expectOk: false, expect: ["mehrfach verwendet"] },
-  { name: "key mit Leerzeichen", input: clone((c) => { c.steps[1].key = "mangel pruefen"; c.connections[1].from = "mangel pruefen"; c.connections[1].to = "berechtigt"; c.connections[0].to = "mangel pruefen"; }), expectOk: true, expect: ["Sonderzeichen oder Leerzeichen"] },
+  { name: "key mit Leerzeichen", input: clone((c) => {
+      c.steps[1].key = "mangel pruefen";
+      c.connections[0].to = "mangel pruefen";
+      c.connections[1].from = "mangel pruefen";
+      c.connections[1].to = "berechtigt";
+      c.steps[2].inputFrom = ["mangel pruefen"];   // Umbenennung muss auch in der Artefaktkette nachgezogen werden
+    }), expectOk: true, expect: ["Sonderzeichen oder Leerzeichen"] },
   { name: "Schritt ohne name", input: clone((c) => { delete c.steps[1].name; }), expectOk: false, expect: ["steps[1].name", "Name des Prozessschritts fehlt"] },
   { name: "name ist Zahl", input: clone((c) => { c.steps[1].name = 42; }), expectOk: false, expect: ["steps[1].name"] },
   { name: "unbekannter Akteur", input: clone((c) => { c.steps[1].lane = "Buchhaltung"; }), expectOk: false, expect: ["ist unter lanes nicht definiert", "Definierte Akteure"] },
@@ -95,6 +103,17 @@ export const cases = [
   { name: "SIPOC-Felder fehlen", input: clone((c) => { delete c.steps[1].supplier; delete c.steps[1].input; }), expectOk: true, expect: ["SIPOC-Felder"] },
   { name: "unbekanntes Feld", input: clone((c) => { c.steps[1].dauer = "3 Tage"; }), expectOk: true, expect: ["Unbekannte Felder: dauer"] },
   { name: "Akteur ohne Schritte", input: clone((c) => { c.lanes.push({ name: "Vertrieb" }); }), expectOk: true, expect: ["kein Prozessschritt zugeordnet"] },
+  // Artefaktkette (inputFrom)
+  { name: "inputFrom auf unbekannten Schlüssel", input: clone((c) => { c.steps[1].inputFrom = ["gibt_es_nicht"]; }),
+    expectOk: false, expect: ['Der Schlüssel "gibt_es_nicht" kommt in steps nicht vor'] },
+  { name: "inputFrom auf sich selbst", input: clone((c) => { c.steps[1].inputFrom = ["pruefen"]; }),
+    expectOk: false, expect: ["verweist über inputFrom auf sich selbst"] },
+  { name: "inputFrom ist kein Array", input: clone((c) => { c.steps[1].inputFrom = "eingang"; }),
+    expectOk: false, expect: ["inputFrom ist Text"] },
+  { name: "inputFrom mit Zahl als Eintrag", input: clone((c) => { c.steps[1].inputFrom = [7]; }),
+    expectOk: false, expect: ["ist Zahl statt eines Schlüssels"] },
+  { name: "inputFrom mit mehreren Herkünften", input: clone((c) => { c.steps[3].inputFrom = ["berechtigt", "pruefen"]; }),
+    expectOk: true, expect: ["erfolgreich"] },
   { name: "vollständig korrekt", input: clone(), expectOk: true, expect: ["erfolgreich"] },
 ];
 

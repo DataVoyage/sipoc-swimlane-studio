@@ -7,7 +7,7 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (02.09.2026):** 67 der 71 Vorgänge sind über
+**Stand der Prüfung (03.09.2026):** 81 der 86 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
 (Playwright/Chromium, `npm test`) — überwiegend gegen die ausgelieferte
 `index.html` per `file://`; die Vorgänge rund um Auslieferung, Zwischenablage
@@ -15,11 +15,13 @@ und Agenten-Import zusätzlich über einen kurzlebigen lokalen HTTP-Server, weil
 sie das Nachladen von Dateien bzw. eine http-Herkunft voraussetzen wie im
 Hosting-Betrieb.
 
-Offen sind noch vier Vorgänge, die sich in einer kopflosen Browser-Umgebung
+Offen sind noch fünf Vorgänge, die sich in einer kopflosen Browser-Umgebung
 nicht sinnvoll automatisieren lassen: das Verhalten bei verweigerter
 Zwischenablage (5.8), der tatsächliche Import in draw.io bzw. Confluence (5.9)
-sowie die beiden Wege über die File System Access API (6.2, 6.3), die einen
-echten Dateiauswahldialog des Betriebssystems erfordern. Sie sind als offener
+die beiden Wege über die File System Access API (6.2, 6.3), die einen
+echten Dateiauswahldialog des Betriebssystems erfordern, sowie der Sprung zur
+Quellzeile per Klick auf eine Herkunftsangabe (10.6), der ein weiches Scrollen
+auswertet. Sie sind als offener
 Prüfvorgang markiert, nicht als fehlend.
 
 Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert geprüft (Umsetzung laut Code vorhanden)
@@ -144,6 +146,26 @@ Die Fälle zu 9.5 bis 9.9 sind als Sammlung in
 [`tests/agent-cases.mjs`](../tests/agent-cases.mjs) hinterlegt: 47 Varianten
 einer Agentenantwort, jeweils mit dem erwarteten Urteil und der Aussage, die in
 der Rückmeldung stehen muss.
+
+## AP10 — Artefaktkette und Prozesskette
+
+| # | Vorgang | Erwartetes Ergebnis | Geprüft |
+|---|---|---|---|
+| 10.1 | App erstmals öffnen | Drei aufeinander aufbauende Beispielprozesse sind geladen und untereinander verkettet | ✅ |
+| 10.2 | Bei einem Schritt hinterlegen, aus wessen Output sich sein Input speist (Mehrfachauswahl) | Die Herkunft wird gespeichert und erscheint in der SIPOC-Übersicht an der Input-Karte; am Output steht, wie viele Schritte er speist | ✅ |
+| 10.3 | Zwischen „Liste“ und „Übersicht“ umschalten | Dieselben Daten erscheinen als pflegbare Liste bzw. als fünfspaltige SIPOC-Darstellung; die Wahl bleibt nach Neuladen erhalten | ✅ |
+| 10.4 | Ketten ein- und ausblenden | Im Ruhezustand sind die Verbindungskurven unsichtbar; über den Schalter erscheinen alle dauerhaft | ✅ |
+| 10.5 | Eine Zeile der Übersicht überfahren | Die zusammenhängende Kette wird hervorgehoben (Kurven und beteiligte Zeilen) | ✅ |
+| 10.6 | Auf eine Herkunftsangabe klicken | Die Ansicht springt zur Quellzeile und hebt sie kurz hervor | ◻︎ |
+| 10.7 | Schritt löschen, auf den sich andere Schritte beziehen | Die Herkunftsverweise darauf werden mitentfernt, es bleiben keine toten Verweise | ✅ |
+| 10.8 | Projekt duplizieren | Die Kopie hat eine eigenständige Artefaktkette; ihre Verweise zeigen auf die Schritte der Kopie, nicht auf das Original | ✅ |
+| 10.9 | Prozesskette öffnen | Landkarte mit allen Prozessen als Karten und den Übergaben als beschriftete Pfeile, darunter die Übergaben als Liste | ✅ |
+| 10.10 | Verkettung anlegen (liefernder Prozess, Artefakt, empfangender Prozess, optional die genauen Schritte) | Übergabe erscheint sofort in Liste und Landkarte | ✅ |
+| 10.11 | Prozess mit sich selbst verketten bzw. eine bestehende Verkettung erneut anlegen | Beides wird mit Hinweis verhindert | ✅ |
+| 10.12 | Verkettung bearbeiten und löschen | Änderung bzw. Entfernung wirkt sofort auf Liste und Landkarte | ✅ |
+| 10.13 | Auf eine Prozesskarte in der Landkarte klicken | Der angeklickte Prozess wird zum aktiven Prozess in allen Ansichten | ✅ |
+| 10.14 | Prozess löschen, der Teil einer Kette ist | Seine Übergaben werden mitentfernt; die übrige Kette bleibt bestehen | ✅ |
+| 10.15 | Agentenantwort mit `inputFrom` importieren | Die gelieferte Artefaktkette landet in der SIPOC-Übersicht; unbekannte oder auf sich selbst verweisende Schlüssel werden beanstandet | ✅ |
 
 ## Smoke-Test ausführen
 

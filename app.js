@@ -16,7 +16,7 @@
   // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
   // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
   // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
-  const APP_VERSION = "1.3.1";
+  const APP_VERSION = "1.4.0";
 
   const STEP_TYPES = {
     start:    { label: "Start",         shape: "terminator", color: "var(--green)",  order: 0 },
@@ -130,6 +130,7 @@
       output: s.output || "",
       customer: s.customer || "",
       description: s.description || "",
+      inputFrom: [],
     });
 
     const S = {};
@@ -244,6 +245,16 @@
       conn("s12", "s13"),
     ];
 
+    // Artefaktkette: Woher stammt der Input eines Schritts? Bei s11 laufen die
+    // beiden Freigabewege zusammen — der Input hat also zwei Herkünfte.
+    const herkunft = {
+      s2: ["s1"], s3: ["s2"], s4: ["s3"], s5: ["s4"], s6: ["s4"], s7: ["s6"],
+      s8: ["s6"], s9: ["s8"], s10: ["s8"], s11: ["s9", "s10"], s12: ["s11"], s13: ["s12"],
+    };
+    Object.keys(herkunft).forEach((key) => {
+      S[key].inputFrom = herkunft[key].map((q) => S[q].id);
+    });
+
     return {
       id: uid("proj"),
       name: "Kreditorenrechnungsprüfung",
@@ -251,6 +262,179 @@
       lanes,
       steps,
       connections,
+    };
+  }
+
+  // Dem Rechnungsprozess vorgelagert: Hier entsteht die Bestellung, auf die
+  // sich die spätere Rechnung bezieht.
+  function seedProcurementProject() {
+    const lane = (name, description, color) => ({ id: uid("lane"), name, description, color });
+    const L = {
+      projektleitung: lane("Projektleitung", "Bedarfsträger im Ingenieurprojekt", LANE_COLORS[3]),
+      einkauf: lane("Einkauf", "Zentraler Einkauf", LANE_COLORS[2]),
+      geschaeftsfuehrung: lane("Geschäftsführung", "Freigabeinstanz ab 10.000 €", LANE_COLORS[4]),
+    };
+    const lanes = Object.values(L);
+    const step = (laneKey, type, name, s) => ({
+      id: uid("step"), lane: L[laneKey].id, type, name,
+      supplier: s.supplier || "", input: s.input || "", output: s.output || "",
+      customer: s.customer || "", description: s.description || "", inputFrom: [],
+    });
+
+    const S = {};
+    S.b1 = step("projektleitung", "start", "Bedarf im Projekt feststellen", {
+      supplier: "Projektteam", input: "Leistungsverzeichnis, Terminplan",
+      output: "Bedarfsmeldung mit Mengengerüst", customer: "Projektleitung",
+      description: "Aus der Bauablaufplanung ergibt sich ein Material- oder Leistungsbedarf.",
+    });
+    S.b2 = step("projektleitung", "task", "Bestellanforderung erfassen", {
+      supplier: "Projektleitung", input: "Bedarfsmeldung mit Mengengerüst",
+      output: "Bestellanforderung mit Kostenstelle", customer: "Einkauf",
+    });
+    S.b3 = step("einkauf", "task", "Angebote einholen und vergleichen", {
+      supplier: "Projektleitung", input: "Bestellanforderung mit Kostenstelle",
+      output: "Angebotsspiegel mit Vergabevorschlag", customer: "Einkauf",
+    });
+    S.b4 = step("einkauf", "decision", "Auftragswert über 10.000 €?", {
+      supplier: "Einkauf", input: "Angebotsspiegel mit Vergabevorschlag",
+      output: "Erforderliche Freigabestufe", customer: "Einkauf / Geschäftsführung",
+    });
+    S.b5 = step("geschaeftsfuehrung", "task", "Vergabe freigeben", {
+      supplier: "Einkauf", input: "Vergabevorschlag über 10.000 €",
+      output: "Freigegebener Vergabevorschlag", customer: "Einkauf",
+    });
+    S.b6 = step("einkauf", "task", "Bestellung beim Lieferanten auslösen", {
+      supplier: "Einkauf / Geschäftsführung", input: "Freigegebener Vergabevorschlag",
+      output: "Bestellung mit Bestellnummer", customer: "Wesselmann Baustoffhandel GmbH",
+    });
+    S.b7 = step("einkauf", "end", "Auftragsbestätigung ablegen", {
+      supplier: "Wesselmann Baustoffhandel GmbH", input: "Auftragsbestätigung des Lieferanten",
+      output: "Verbindliche Bestellung mit Bestellnummer", customer: "Kreditorenbuchhaltung",
+      description: "Die abgelegte Bestellung ist später die Grundlage der Rechnungsprüfung.",
+    });
+
+    const conn = (from, to, label) => ({ id: uid("conn"), from: S[from].id, to: S[to].id, label: label || "" });
+    const herkunft = { b2: ["b1"], b3: ["b2"], b4: ["b3"], b5: ["b4"], b6: ["b5", "b4"], b7: ["b6"] };
+    Object.keys(herkunft).forEach((k) => { S[k].inputFrom = herkunft[k].map((q) => S[q].id); });
+
+    return {
+      id: uid("proj"),
+      name: "Beschaffungsantrag freigeben",
+      updatedAt: Date.now(),
+      lanes,
+      steps: Object.values(S),
+      connections: [
+        conn("b1", "b2"), conn("b2", "b3"), conn("b3", "b4"),
+        conn("b4", "b5", "Ja"), conn("b4", "b6", "Nein"),
+        conn("b5", "b6"), conn("b6", "b7"),
+      ],
+    };
+  }
+
+  // Dem Rechnungsprozess nachgelagert: Was mit den gebuchten Vorgängen zum
+  // Monatsende geschieht.
+  function seedClosingProject() {
+    const lane = (name, description, color) => ({ id: uid("lane"), name, description, color });
+    const L = {
+      kreditoren: lane("Kreditorenbuchhaltung", "Team Kreditoren der Finanzbuchhaltung", LANE_COLORS[2]),
+      hauptbuch: lane("Hauptbuchhaltung", "Verantwortlich für den Monatsabschluss", LANE_COLORS[6]),
+      pruefung: lane("Wirtschaftsprüfung", "Externe Prüfgesellschaft", LANE_COLORS[5]),
+    };
+    const lanes = Object.values(L);
+    const step = (laneKey, type, name, s) => ({
+      id: uid("step"), lane: L[laneKey].id, type, name,
+      supplier: s.supplier || "", input: s.input || "", output: s.output || "",
+      customer: s.customer || "", description: s.description || "", inputFrom: [],
+    });
+
+    const S = {};
+    S.m1 = step("kreditoren", "start", "Offene Posten zum Monatsende ermitteln", {
+      supplier: "Kreditorenbuchhaltung", input: "Archivierte Rechnungsvorgänge des Monats",
+      output: "Liste der offenen Posten", customer: "Kreditorenbuchhaltung",
+    });
+    S.m2 = step("kreditoren", "task", "Abgrenzungen für erbrachte, nicht berechnete Leistungen bilden", {
+      supplier: "Fachbereich", input: "Liste der offenen Posten, Leistungsstände",
+      output: "Abgrenzungsbuchungen", customer: "Hauptbuchhaltung",
+    });
+    S.m3 = step("kreditoren", "task", "Saldenabstimmung mit Lieferanten durchführen", {
+      supplier: "Wesselmann Baustoffhandel GmbH", input: "Saldenbestätigungen",
+      output: "Abgestimmte Kreditorensalden", customer: "Kreditorenbuchhaltung",
+    });
+    S.m4 = step("kreditoren", "decision", "Differenzen in der Abstimmung?", {
+      supplier: "Kreditorenbuchhaltung", input: "Abgestimmte Kreditorensalden",
+      output: "Abstimmergebnis", customer: "Kreditorenbuchhaltung",
+    });
+    S.m5 = step("kreditoren", "task", "Differenzen klären und korrigieren", {
+      supplier: "Kreditorenbuchhaltung", input: "Abweichungsliste",
+      output: "Korrekturbuchungen", customer: "Kreditorenbuchhaltung",
+      description: "Nach der Korrektur wird die Abstimmung erneut durchlaufen.",
+    });
+    S.m6 = step("hauptbuch", "task", "Kreditorenkonten ins Hauptbuch überleiten", {
+      supplier: "Kreditorenbuchhaltung", input: "Abgestimmte Salden, Abgrenzungsbuchungen",
+      output: "Überleitung im Hauptbuch", customer: "Hauptbuchhaltung",
+    });
+    S.m7 = step("hauptbuch", "end", "Abschlussunterlagen bereitstellen", {
+      supplier: "Hauptbuchhaltung", input: "Überleitung im Hauptbuch",
+      output: "Abschlussmappe Kreditoren", customer: "Wirtschaftsprüfung",
+    });
+    S.m8 = step("pruefung", "end", "Belegstichprobe prüfen", {
+      supplier: "Hauptbuchhaltung", input: "Abschlussmappe Kreditoren",
+      output: "Prüfvermerk", customer: "Geschäftsführung",
+    });
+
+    const conn = (from, to, label) => ({ id: uid("conn"), from: S[from].id, to: S[to].id, label: label || "" });
+    const herkunft = { m2: ["m1"], m3: ["m1"], m4: ["m3"], m5: ["m4"], m6: ["m2", "m4"], m7: ["m6"], m8: ["m7"] };
+    Object.keys(herkunft).forEach((k) => { S[k].inputFrom = herkunft[k].map((q) => S[q].id); });
+
+    return {
+      id: uid("proj"),
+      name: "Monatsabschluss Kreditoren",
+      updatedAt: Date.now(),
+      lanes,
+      steps: Object.values(S),
+      connections: [
+        conn("m1", "m2"), conn("m1", "m3"), conn("m3", "m4"),
+        conn("m4", "m5", "Ja"), conn("m5", "m3", "erneut abstimmen"),
+        conn("m4", "m6", "Nein"), conn("m2", "m6"),
+        conn("m6", "m7"), conn("m7", "m8"),
+      ],
+    };
+  }
+
+  // Startbestand: drei aufeinander aufbauende Prozesse desselben fiktiven
+  // Ingenieurbüros, damit die Prozesskette von Anfang an etwas zu zeigen hat.
+  function seedStore() {
+    const beschaffung = seedProcurementProject();
+    const rechnung = seedProject();
+    const abschluss = seedClosingProject();
+
+    const letzterSchritt = (p) => p.steps[p.steps.length - 1];
+    const ersterSchritt = (p) => p.steps[0];
+    const schrittMit = (p, teil) => p.steps.find((s) => s.name.indexOf(teil) !== -1) || ersterSchritt(p);
+
+    return {
+      projects: [beschaffung, rechnung, abschluss],
+      currentProjectId: rechnung.id,
+      processLinks: [
+        {
+          id: uid("link"),
+          fromProject: beschaffung.id,
+          fromStep: letzterSchritt(beschaffung).id,
+          toProject: rechnung.id,
+          toStep: schrittMit(rechnung, "Finanzsystem anlegen").id,
+          artifact: "Verbindliche Bestellung mit Bestellnummer",
+          description: "Der Bestellbezug ist Voraussetzung für die Formalprüfung der Rechnung.",
+        },
+        {
+          id: uid("link"),
+          fromProject: rechnung.id,
+          fromStep: letzterSchritt(rechnung).id,
+          toProject: abschluss.id,
+          toStep: ersterSchritt(abschluss).id,
+          artifact: "Revisionssicher archivierter Rechnungsvorgang",
+          description: "Die gebuchten und archivierten Vorgänge sind die Grundlage des Monatsabschlusses.",
+        },
+      ],
     };
   }
 
@@ -271,10 +455,42 @@
   let ui = {
     section: "sipoc",
     stepFilterLane: "",
+    sipocView: localStorage.getItem("sipocSwimlaneStudio.sipocView") || "list",
+    showChains: localStorage.getItem("sipocSwimlaneStudio.showChains") === "1",
     zoom: 1,
     theme: localStorage.getItem("sipocSwimlaneStudio.theme") || "auto",
   };
   let fileHandle = null;  // FileSystemFileHandle, falls verknüpft
+
+  // Ergänzt fehlende Felder älterer Datenstände und entfernt Verweise, deren
+  // Ziel es nicht mehr gibt — sonst zeigen Ketten ins Leere.
+  function normalizeStore(s) {
+    if (!s || !Array.isArray(s.projects)) return s;
+    if (!Array.isArray(s.processLinks)) s.processLinks = [];
+    s.projects.forEach((p) => {
+      if (!Array.isArray(p.lanes)) p.lanes = [];
+      if (!Array.isArray(p.steps)) p.steps = [];
+      if (!Array.isArray(p.connections)) p.connections = [];
+      const stepIds = new Set(p.steps.map((st) => st.id));
+      p.steps.forEach((st) => {
+        st.inputFrom = Array.isArray(st.inputFrom)
+          ? st.inputFrom.filter((id) => stepIds.has(id) && id !== st.id)
+          : [];
+      });
+    });
+    const projectIds = new Set(s.projects.map((p) => p.id));
+    const stepIdsOf = (projectId) => {
+      const p = s.projects.find((x) => x.id === projectId);
+      return p ? new Set(p.steps.map((st) => st.id)) : new Set();
+    };
+    s.processLinks = s.processLinks.filter((l) =>
+      l && projectIds.has(l.fromProject) && projectIds.has(l.toProject) && l.fromProject !== l.toProject);
+    s.processLinks.forEach((l) => {
+      if (l.fromStep && !stepIdsOf(l.fromProject).has(l.fromStep)) l.fromStep = "";
+      if (l.toStep && !stepIdsOf(l.toProject).has(l.toStep)) l.toStep = "";
+    });
+    return s;
+  }
 
   function loadStore() {
     try {
@@ -282,7 +498,7 @@
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.projects) && parsed.projects.length) {
-          return parsed;
+          return normalizeStore(parsed);
         }
       }
     } catch (e) { /* beschädigter Speicher -> weiter zu den Startdaten */ }
@@ -294,12 +510,11 @@
     if (bundled && bundled.textContent.trim()) {
       try {
         const parsed = JSON.parse(bundled.textContent);
-        if (parsed && Array.isArray(parsed.projects) && parsed.projects.length) return parsed;
+        if (parsed && Array.isArray(parsed.projects) && parsed.projects.length) return normalizeStore(parsed);
       } catch (e) { /* fehlerhafter Bundle-Inhalt -> Beispielprojekt */ }
     }
 
-    const seeded = seedProject();
-    return { projects: [seeded], currentProjectId: seeded.id };
+    return seedStore();
   }
 
   const persistLocal = debounce(function () {
@@ -494,6 +709,7 @@
       output: data.output || "",
       customer: data.customer || "",
       description: data.description || "",
+      inputFrom: Array.isArray(data.inputFrom) ? data.inputFrom : [],
     });
     touch();
   }
@@ -509,8 +725,63 @@
     )) return false;
     p.connections = p.connections.filter((c) => c.from !== id && c.to !== id);
     p.steps = p.steps.filter((s) => s.id !== id);
+    // Artefaktherkünfte und Prozessverknüpfungen dürfen nicht ins Leere zeigen.
+    p.steps.forEach((s) => { s.inputFrom = (s.inputFrom || []).filter((q) => q !== id); });
+    store.processLinks.forEach((l) => {
+      if (l.fromStep === id) l.fromStep = "";
+      if (l.toStep === id) l.toStep = "";
+    });
     touch();
     return true;
+  }
+
+  /* ----------------------------------------- Prozesskette (Projektebene) */
+
+  function getProcessLinks() {
+    if (!Array.isArray(store.processLinks)) store.processLinks = [];
+    return store.processLinks;
+  }
+  function getProjectById(id) {
+    return store.projects.find((p) => p.id === id) || null;
+  }
+  function addProcessLink(data) {
+    if (data.fromProject === data.toProject) {
+      showToast("Ein Prozess kann nicht mit sich selbst verkettet werden.", "warn");
+      return false;
+    }
+    const dup = getProcessLinks().find((l) => l.fromProject === data.fromProject && l.toProject === data.toProject);
+    if (dup) {
+      showToast("Diese Verkettung existiert bereits — bitte die vorhandene bearbeiten.", "warn");
+      return false;
+    }
+    getProcessLinks().push({
+      id: uid("link"),
+      fromProject: data.fromProject,
+      fromStep: data.fromStep || "",
+      toProject: data.toProject,
+      toStep: data.toStep || "",
+      artifact: data.artifact || "",
+      description: data.description || "",
+    });
+    touch();
+    return true;
+  }
+  function updateProcessLink(id, data) {
+    const link = getProcessLinks().find((l) => l.id === id);
+    if (!link) return false;
+    if (data.fromProject === data.toProject) {
+      showToast("Ein Prozess kann nicht mit sich selbst verkettet werden.", "warn");
+      return false;
+    }
+    Object.assign(link, data);
+    if (link.fromStep && !(getProjectById(link.fromProject) || { steps: [] }).steps.some((s) => s.id === link.fromStep)) link.fromStep = "";
+    if (link.toStep && !(getProjectById(link.toProject) || { steps: [] }).steps.some((s) => s.id === link.toStep)) link.toStep = "";
+    touch();
+    return true;
+  }
+  function deleteProcessLink(id) {
+    store.processLinks = getProcessLinks().filter((l) => l.id !== id);
+    touch();
   }
 
   function addConnection(data) {
@@ -865,6 +1136,10 @@
     "  - output       Was der Schritt erzeugt.",
     "  - customer     Wer den Output empfängt bzw. weiterverarbeitet.",
     "  - description  Optional, ein Satz zur fachlichen Erläuterung.",
+    "  - inputFrom    Optional, Liste von keys anderer Schritte, deren Output diesen Input speist.",
+    "                 Beispiel: \"inputFrom\": [\"antrag_pruefen\"] bedeutet: Der Input dieses Schritts ist der",
+    "                 Output von \"antrag_pruefen\". Mehrere Herkünfte sind erlaubt, etwa wenn zwei",
+    "                 Freigabewege zusammenlaufen. Daraus entsteht die Artefaktkette der SIPOC-Übersicht.",
     "  Die vier Felder supplier, input, output und customer sind der Kern von SIPOC — fülle sie für jeden Schritt.",
     "",
     "connections  (Pflicht, mindestens 1 Eintrag)  Der Ablauf zwischen den Schritten.",
@@ -879,6 +1154,8 @@
     "- Rückschleifen (Nacharbeit, erneute Prüfung) sind ausdrücklich erlaubt und erwünscht, wo sie fachlich vorkommen.",
     "- Ein Schritt verweist nie auf sich selbst.",
     "- Wechselt die Zuständigkeit, wechselt auch die lane — daraus entstehen die Swimlanes.",
+    "- Setze inputFrom überall dort, wo ein Schritt auf dem Ergebnis eines früheren Schritts aufsetzt;",
+    "  in aller Regel entspricht das den eingehenden connections.",
     "",
     "## Vollständiges Beispiel",
     "{",
@@ -894,15 +1171,20 @@
     '    { "key": "antrag_stellen", "name": "Urlaubsantrag stellen", "lane": "Mitarbeitende", "type": "start",',
     '      "supplier": "Mitarbeitende", "input": "Urlaubswunsch, Resturlaubskonto", "output": "Erfasster Urlaubsantrag", "customer": "Führungskraft" },',
     '    { "key": "antrag_pruefen", "name": "Antrag auf Vertretung und Auslastung prüfen", "lane": "Führungskraft", "type": "task",',
-    '      "supplier": "Mitarbeitende", "input": "Erfasster Urlaubsantrag", "output": "Prüfergebnis", "customer": "Führungskraft" },',
+    '      "supplier": "Mitarbeitende", "input": "Erfasster Urlaubsantrag", "output": "Prüfergebnis", "customer": "Führungskraft",',
+    '      "inputFrom": ["antrag_stellen"] },',
     '    { "key": "genehmigt", "name": "Antrag genehmigt?", "lane": "Führungskraft", "type": "decision",',
-    '      "supplier": "Führungskraft", "input": "Prüfergebnis", "output": "Entscheidung", "customer": "Personalabteilung" },',
+    '      "supplier": "Führungskraft", "input": "Prüfergebnis", "output": "Entscheidung", "customer": "Personalabteilung",',
+    '      "inputFrom": ["antrag_pruefen"] },',
     '    { "key": "verbuchen", "name": "Urlaub im Zeitkonto verbuchen", "lane": "Personalabteilung", "type": "task",',
-    '      "supplier": "Führungskraft", "input": "Genehmigter Antrag", "output": "Aktualisiertes Zeitkonto", "customer": "Mitarbeitende" },',
+    '      "supplier": "Führungskraft", "input": "Genehmigter Antrag", "output": "Aktualisiertes Zeitkonto", "customer": "Mitarbeitende",',
+    '      "inputFrom": ["genehmigt"] },',
     '    { "key": "abgelehnt", "name": "Ablehnung mitteilen", "lane": "Führungskraft", "type": "end",',
-    '      "supplier": "Führungskraft", "input": "Ablehnungsentscheidung", "output": "Begründete Absage", "customer": "Mitarbeitende" },',
+    '      "supplier": "Führungskraft", "input": "Ablehnungsentscheidung", "output": "Begründete Absage", "customer": "Mitarbeitende",',
+    '      "inputFrom": ["genehmigt"] },',
     '    { "key": "bestaetigen", "name": "Genehmigung bestätigen", "lane": "Personalabteilung", "type": "end",',
-    '      "supplier": "Personalabteilung", "input": "Aktualisiertes Zeitkonto", "output": "Bestätigung im Self-Service", "customer": "Mitarbeitende" }',
+    '      "supplier": "Personalabteilung", "input": "Aktualisiertes Zeitkonto", "output": "Bestätigung im Self-Service", "customer": "Mitarbeitende",',
+    '      "inputFrom": ["verbuchen"] }',
     "  ],",
     '  "connections": [',
     '    { "from": "antrag_stellen", "to": "antrag_pruefen" },',
@@ -1173,7 +1455,7 @@
         });
 
         const unknown = Object.keys(step).filter((k) =>
-          ["key", "name", "lane", "type", "supplier", "input", "output", "customer", "description"].indexOf(k) === -1);
+          ["key", "name", "lane", "type", "supplier", "input", "output", "customer", "description", "inputFrom"].indexOf(k) === -1);
         if (unknown.length) {
           notes.push(issue(at, "Unbekannte Felder: " + unknown.join(", ") + ".",
             "Diese Felder werden ignoriert; lasse sie weg."));
@@ -1184,6 +1466,8 @@
           stepByKey.set(key, {
             id: uid("step"),
             key,
+            inputFromKeys: Array.isArray(step.inputFrom) ? step.inputFrom : (step.inputFrom === undefined ? [] : null),
+            inputFromRaw: step.inputFrom,
             lane: laneRef.id,
             type,
             name: isText(step.name) ? step.name.trim() : "(ohne Namen)",
@@ -1196,6 +1480,44 @@
         }
       });
     }
+
+    /* ---- Artefaktherkunft (inputFrom) ----
+       Erst nach allen Schritten auflösbar, weil ein Schritt auch auf einen
+       weiter unten stehenden Schlüssel verweisen darf. */
+    stepByKey.forEach((entry, key) => {
+      const at = "steps (" + key + ").inputFrom";
+      if (entry.inputFromKeys === null) {
+        errors.push(issue(at, "inputFrom ist " + typeName(entry.inputFromRaw) + ", erwartet wird eine Liste von Schlüsseln.",
+          'Schreibe "inputFrom": ["schluessel_a", "schluessel_b"] oder lasse das Feld weg.'));
+        entry.inputFrom = [];
+        return;
+      }
+      const resolved = [];
+      entry.inputFromKeys.forEach((raw) => {
+        if (!isText(raw)) {
+          errors.push(issue(at, "Ein Eintrag in inputFrom ist " + typeName(raw) + " statt eines Schlüssels.",
+            "Gib die keys der Schritte als Text an."));
+          return;
+        }
+        const ref = raw.trim();
+        if (ref === key) {
+          errors.push(issue(at, "Der Schritt verweist über inputFrom auf sich selbst.",
+            "Ein Schritt kann seinen eigenen Output nicht als Input beziehen; entferne den Eintrag."));
+          return;
+        }
+        const target = stepByKey.get(ref);
+        if (!target) {
+          if (!seenKeys.has(ref)) {
+            errors.push(issue(at, "Der Schlüssel \"" + ref + "\" kommt in steps nicht vor.",
+              "Vorhandene Schlüssel: " + (Array.from(seenKeys).map((k) => '"' + k + '"').join(", ") || "(keine)") +
+              ". Korrigiere den Eintrag oder ergänze den fehlenden Schritt."));
+          }
+          return;
+        }
+        if (resolved.indexOf(target.id) === -1) resolved.push(target.id);
+      });
+      entry.inputFrom = resolved;
+    });
 
     /* ---- connections ---- */
     const connections = [];
@@ -1341,6 +1663,9 @@
       steps: Array.from(stepByKey.values()).map((s) => {
         const copy = Object.assign({}, s);
         delete copy.key;
+        delete copy.inputFromKeys;
+        delete copy.inputFromRaw;
+        copy.inputFrom = s.inputFrom || [];
         return copy;
       }),
       connections,
@@ -1596,6 +1921,27 @@
       </select>
     </div>`;
   }
+  // Mehrfachauswahl: Aus welchen Outputs anderer Schritte speist sich dieser
+  // Input? Daraus entsteht die Artefaktkette in der SIPOC-Übersicht.
+  function fieldInputSources(step, project) {
+    const others = project.steps.filter((s) => !step || s.id !== step.id);
+    if (!others.length) return "";
+    const selected = new Set((step && step.inputFrom) || []);
+    return `<div class="field"><label>Input stammt aus dem Output von</label>
+      <span class="hint">Verkettet die SIPOC-Zeilen über ihre Artefakte — mehrere Herkünfte sind möglich.</span>
+      <div class="source-list">
+        ${others.map((s) => `
+          <label class="source-option">
+            <input type="checkbox" name="inputFrom" value="${escapeHtml(s.id)}" ${selected.has(s.id) ? "checked" : ""} />
+            <span class="source-option-text">
+              <span class="source-option-name">${escapeHtml(s.name)}</span>
+              <span class="source-option-out">${s.output ? escapeHtml(s.output) : "ohne Output-Angabe"}</span>
+            </span>
+          </label>`).join("")}
+      </div>
+    </div>`;
+  }
+
   function fieldTypeRadio(name, value) {
     const entries = Object.entries(STEP_TYPES);
     return `<div class="field"><label>Schritt-Typ *</label>
@@ -1694,6 +2040,28 @@
     sel.value = p.lanes.some((l) => l.id === current) ? current : "";
   }
 
+  // Zwei Sichten auf dieselben Daten: die pflegbare Liste und die
+  // SIPOC-Übersicht, die den Fluss der Artefakte zeigt.
+  function renderSipocView() {
+    const list = document.getElementById("stepList");
+    const board = document.getElementById("sipocBoard");
+    const boardMode = ui.sipocView === "board";
+    document.querySelectorAll(".segmented-option").forEach((b) =>
+      b.classList.toggle("active", b.dataset.view === ui.sipocView));
+    if (list) list.classList.toggle("hidden", boardMode);
+    if (board) board.classList.toggle("hidden", !boardMode);
+    const filter = document.getElementById("stepFilterLane");
+    if (filter) filter.classList.toggle("hidden", boardMode);
+    const chainsBtn = document.getElementById("toggleChainsBtn");
+    if (chainsBtn) {
+      chainsBtn.classList.toggle("hidden", !boardMode);
+      chainsBtn.classList.toggle("btn-primary", ui.showChains);
+      chainsBtn.classList.toggle("btn-ghost", !ui.showChains);
+      chainsBtn.textContent = ui.showChains ? "Ketten ausblenden" : "Ketten einblenden";
+    }
+    if (boardMode) renderSipocBoard(); else renderSteps();
+  }
+
   function renderSteps() {
     const p = getProject();
     const list = document.getElementById("stepList");
@@ -1737,6 +2105,179 @@
     });
   }
 
+  /* ------------------------------------------------ SIPOC-Übersicht (Board) */
+
+  // Reihenfolge der Zeilen: entlang des Ablaufs, damit die Kette von oben nach
+  // unten liest. Grundlage ist dieselbe Tiefenberechnung wie im Diagramm.
+  function stepsInFlowOrder(project) {
+    if (!project.steps.length) return [];
+    const layout = computeLayout(project);
+    const laneRank = new Map(project.lanes.map((l, i) => [l.id, i]));
+    const depthOf = new Map(layout.steps.map((s) => [s.id, s.depth]));
+    return project.steps.slice().sort((a, b) => {
+      const da = depthOf.get(a.id) || 0, db = depthOf.get(b.id) || 0;
+      if (da !== db) return da - db;
+      return (laneRank.get(a.lane) || 0) - (laneRank.get(b.lane) || 0);
+    });
+  }
+
+  function renderSipocBoard() {
+    const p = getProject();
+    const board = document.getElementById("sipocBoard");
+    if (!board) return;
+    if (!p.steps.length) {
+      board.innerHTML = `<div class="agent-placeholder">Noch keine Prozessschritte — die Übersicht entsteht, sobald Schritte erfasst sind.</div>`;
+      return;
+    }
+
+    const ordered = stepsInFlowOrder(p);
+    const byId = new Map(p.steps.map((s) => [s.id, s]));
+    const cell = (value, extra) => value
+      ? `<div class="sipoc-cell ${extra || ""}">${escapeHtml(value)}</div>`
+      : `<div class="sipoc-cell sipoc-cell-empty ${extra || ""}">—</div>`;
+
+    const rows = ordered.map((s, i) => {
+      const lane = getLane(s.lane);
+      const meta = STEP_TYPES[s.type] || STEP_TYPES.task;
+      const sources = (s.inputFrom || []).map((id) => byId.get(id)).filter(Boolean);
+      const chips = sources.length
+        ? `<div class="sipoc-chips">${sources.map((q) =>
+            `<button type="button" class="sipoc-chip" data-jump="${escapeHtml(q.id)}" title="${escapeHtml(q.output || q.name)}">
+               ↰ ${escapeHtml(q.name)}
+             </button>`).join("")}</div>`
+        : "";
+      const targets = p.steps.filter((t) => (t.inputFrom || []).indexOf(s.id) !== -1);
+      const outMark = targets.length
+        ? `<div class="sipoc-outmark">speist ${targets.length} Schritt${targets.length === 1 ? "" : "e"}</div>`
+        : "";
+      return `<div class="sipoc-row" data-step-id="${escapeHtml(s.id)}">
+        <div class="sipoc-index">${i + 1}</div>
+        ${cell(s.supplier, "sipoc-side")}
+        <div class="sipoc-cell sipoc-input" data-role="input">
+          ${s.input ? escapeHtml(s.input) : '<span class="sipoc-empty-text">—</span>'}
+          ${chips}
+        </div>
+        <div class="sipoc-cell sipoc-process" style="--type-color:${meta.color}">
+          <div class="sipoc-process-name">${escapeHtml(s.name)}</div>
+          <div class="sipoc-process-meta">
+            <span class="badge"><span class="badge-dot" style="background:${meta.color}"></span>${meta.label}</span>
+            ${lane ? `<span class="badge"><span class="badge-dot" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</span>` : ""}
+          </div>
+        </div>
+        <div class="sipoc-cell sipoc-output" data-role="output">
+          ${s.output ? escapeHtml(s.output) : '<span class="sipoc-empty-text">—</span>'}
+          ${outMark}
+        </div>
+        ${cell(s.customer, "sipoc-side")}
+      </div>`;
+    }).join("");
+
+    board.innerHTML = `
+      <div class="sipoc-grid${ui.showChains ? " sipoc-grid-show-links" : ""}">
+        <div class="sipoc-header">
+          <div class="sipoc-index"></div>
+          <div class="sipoc-head"><span>S</span>upplier</div>
+          <div class="sipoc-head"><span>I</span>nput</div>
+          <div class="sipoc-head"><span>P</span>rocess</div>
+          <div class="sipoc-head"><span>O</span>utput</div>
+          <div class="sipoc-head"><span>C</span>ustomer</div>
+        </div>
+        ${rows}
+        <svg class="sipoc-links" aria-hidden="true"></svg>
+      </div>`;
+
+    board.querySelectorAll(".sipoc-row").forEach((row) => {
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".sipoc-chip")) return;
+        const step = getStep(row.dataset.stepId);
+        if (step) openStepForm(step);
+      });
+      row.addEventListener("mouseenter", () => highlightChain(row.dataset.stepId));
+      row.addEventListener("mouseleave", () => highlightChain(null));
+    });
+    board.querySelectorAll(".sipoc-chip").forEach((chip) => {
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const target = board.querySelector(`.sipoc-row[data-step-id="${chip.dataset.jump}"]`);
+        if (target) {
+          target.scrollIntoView({ block: "center", behavior: "smooth" });
+          target.classList.add("sipoc-row-flash");
+          setTimeout(() => target.classList.remove("sipoc-row-flash"), 1200);
+        }
+      });
+    });
+
+    drawSipocLinks();
+  }
+
+  // Zeichnet die Artefaktkette: vom Output des Quellschritts zum Input des
+  // Zielschritts. Die Punkte werden aus dem gerenderten Layout gelesen, damit
+  // Kurven und Karten auch nach Textumbrüchen zusammenpassen.
+  function drawSipocLinks() {
+    const grid = document.querySelector("#sipocBoard .sipoc-grid");
+    const svg = grid && grid.querySelector(".sipoc-links");
+    if (!grid || !svg) return;
+    const p = getProject();
+    const gridRect = grid.getBoundingClientRect();
+    svg.setAttribute("width", grid.scrollWidth);
+    svg.setAttribute("height", grid.scrollHeight);
+    svg.setAttribute("viewBox", `0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);
+
+    const anchor = (stepId, role, side) => {
+      const row = grid.querySelector(`.sipoc-row[data-step-id="${stepId}"]`);
+      if (!row) return null;
+      const c = row.querySelector(`[data-role="${role}"]`);
+      if (!c) return null;
+      const r = c.getBoundingClientRect();
+      return {
+        x: (side === "left" ? r.left : r.right) - gridRect.left,
+        y: r.top - gridRect.top + r.height / 2,
+      };
+    };
+
+    const paths = [];
+    p.steps.forEach((target) => {
+      (target.inputFrom || []).forEach((sourceId) => {
+        const from = anchor(sourceId, "output", "right");
+        const to = anchor(target.id, "input", "left");
+        if (!from || !to) return;
+        // Außen herum: rechts aus dem Output heraus, links in den Input hinein.
+        const bulge = 26 + Math.min(60, Math.abs(to.y - from.y) / 6);
+        const d = `M ${from.x} ${from.y} C ${from.x + bulge} ${from.y}, ${to.x - bulge} ${to.y}, ${to.x} ${to.y}`;
+        paths.push(
+          `<path d="${d}" class="sipoc-link" data-from="${escapeHtml(sourceId)}" data-to="${escapeHtml(target.id)}" />`
+        );
+      });
+    });
+
+    svg.innerHTML = `<defs>
+        <marker id="sipocArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="currentColor" />
+        </marker>
+      </defs>` + paths.join("");
+  }
+
+  function highlightChain(stepId) {
+    const grid = document.querySelector("#sipocBoard .sipoc-grid");
+    if (!grid) return;
+    grid.querySelectorAll(".sipoc-link").forEach((path) => {
+      const active = stepId && (path.dataset.from === stepId || path.dataset.to === stepId);
+      path.classList.toggle("sipoc-link-active", !!active);
+    });
+    grid.querySelectorAll(".sipoc-row").forEach((row) => {
+      row.classList.remove("sipoc-row-linked");
+    });
+    if (!stepId) return;
+    const step = getStep(stepId);
+    if (!step) return;
+    const related = new Set(step.inputFrom || []);
+    getProject().steps.forEach((s) => { if ((s.inputFrom || []).indexOf(stepId) !== -1) related.add(s.id); });
+    related.forEach((id) => {
+      const row = grid.querySelector(`.sipoc-row[data-step-id="${id}"]`);
+      if (row) row.classList.add("sipoc-row-linked");
+    });
+  }
+
   function openStepForm(step) {
     const p = getProject();
     if (!p.lanes.length) {
@@ -1751,6 +2292,7 @@
       `<div class="field-group" style="display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--separator);padding-top:16px;">` +
       fieldText("supplier", "Supplier (Lieferant des Inputs)", step ? step.supplier : "") +
       fieldText("input", "Input", step ? step.input : "") +
+      fieldInputSources(step, p) +
       fieldText("output", "Output", step ? step.output : "") +
       fieldText("customer", "Customer (Empfänger des Outputs)", step ? step.customer : "") +
       `</div>` +
@@ -1759,13 +2301,16 @@
     openPanel(step ? "Prozessschritt bearbeiten" : "Neuer Prozessschritt", fields, {
       submitLabel: step ? "Speichern" : "Anlegen",
       onSubmit: (data) => {
+        data.inputFrom = Array.from(
+          document.querySelectorAll('#panelForm input[name="inputFrom"]:checked')
+        ).map((el) => el.value);
         if (step) updateStep(step.id, data); else addStep(data);
-        renderSteps(); renderConnections(); renderDiagramIfActive();
+        renderSipocView(); renderConnections(); renderDiagramIfActive();
       },
       onDelete: step ? () => {
         if (!confirm("Prozessschritt „" + step.name + "“ wirklich löschen?")) return false;
         const ok = deleteStep(step.id);
-        if (ok) { renderSteps(); renderConnections(); renderDiagramIfActive(); }
+        if (ok) { renderSipocView(); renderConnections(); renderDiagramIfActive(); }
         return ok;
       } : null,
     });
@@ -1826,6 +2371,202 @@
         renderConnections(); renderDiagramIfActive();
         return true;
       } : null,
+    });
+  }
+
+  /* --------------------------------------------- Oberfläche: Prozesskette */
+
+  function renderProcessLinks() {
+    const list = document.getElementById("processLinkList");
+    if (!list) return;
+    const links = getProcessLinks();
+    if (!links.length) {
+      list.innerHTML = `<div class="list-row"><div class="list-row-main"><div class="list-row-sub">
+        Noch keine Verkettung. Verbinde den Output eines Prozesses mit dem Input eines anderen, um die Prozesskette abzubilden.
+      </div></div></div>`;
+      return;
+    }
+    list.innerHTML = links.map((l) => {
+      const from = getProjectById(l.fromProject), to = getProjectById(l.toProject);
+      const fromStep = from && l.fromStep ? from.steps.find((s) => s.id === l.fromStep) : null;
+      const toStep = to && l.toStep ? to.steps.find((s) => s.id === l.toStep) : null;
+      return `<div class="list-row" data-link-id="${escapeHtml(l.id)}">
+        <div class="list-row-main">
+          <div class="list-row-title-line">
+            <span class="list-row-title">${from ? escapeHtml(from.name) : "?"}</span>
+            <span>→</span>
+            <span class="list-row-title">${to ? escapeHtml(to.name) : "?"}</span>
+            ${l.artifact ? `<span class="badge">${escapeHtml(l.artifact)}</span>` : ""}
+          </div>
+          <div class="list-row-sub">
+            ${fromStep ? "ab „" + escapeHtml(fromStep.name) + "“" : "aus dem Gesamtprozess"} ·
+            ${toStep ? "an „" + escapeHtml(toStep.name) + "“" : "an den Gesamtprozess"}
+            ${l.description ? "<br>" + escapeHtml(l.description) : ""}
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+    list.querySelectorAll(".list-row[data-link-id]").forEach((row) => {
+      row.addEventListener("click", () => {
+        openProcessLinkForm(getProcessLinks().find((l) => l.id === row.dataset.linkId));
+      });
+    });
+  }
+
+  function openProcessLinkForm(link) {
+    if (store.projects.length < 2) {
+      showToast("Für eine Prozesskette werden mindestens zwei Prozesse benötigt.", "warn");
+      return;
+    }
+    const projectOptions = store.projects.map((p) => ({ value: p.id, label: p.name }));
+    const stepOptions = (projectId) => {
+      const p = getProjectById(projectId);
+      return [{ value: "", label: "— gesamter Prozess —" }]
+        .concat((p ? p.steps : []).map((s) => ({ value: s.id, label: s.name })));
+    };
+    const fromProject = link ? link.fromProject : store.projects[0].id;
+    const toProject = link ? link.toProject : store.projects[1].id;
+
+    const fields =
+      fieldSelect("fromProject", "Liefernder Prozess", projectOptions, fromProject, { required: true }) +
+      fieldSelect("fromStep", "Ab welchem Schritt (optional)", stepOptions(fromProject), link ? link.fromStep : "") +
+      fieldText("artifact", "Übergebenes Artefakt", link ? link.artifact : "", {
+        placeholder: "z. B. Verbindliche Bestellung mit Bestellnummer",
+      }) +
+      fieldSelect("toProject", "Empfangender Prozess", projectOptions, toProject, { required: true }) +
+      fieldSelect("toStep", "An welchen Schritt (optional)", stepOptions(toProject), link ? link.toStep : "") +
+      fieldTextarea("description", "Beschreibung der Übergabe", link ? link.description : "");
+
+    openPanel(link ? "Verkettung bearbeiten" : "Neue Verkettung", fields, {
+      submitLabel: link ? "Speichern" : "Anlegen",
+      onSubmit: (data) => {
+        const ok = link ? updateProcessLink(link.id, data) : addProcessLink(data);
+        if (ok !== false) { renderProcessLinks(); renderChainMap(); }
+        return ok;
+      },
+      onDelete: link ? () => {
+        if (!confirm("Verkettung wirklich löschen?")) return false;
+        deleteProcessLink(link.id);
+        renderProcessLinks(); renderChainMap();
+        return true;
+      } : null,
+    });
+
+    // Die Schrittauswahl folgt dem jeweils gewählten Prozess.
+    const refresh = (projectField, stepField) => {
+      const projectSel = document.getElementById("f_" + projectField);
+      const stepSel = document.getElementById("f_" + stepField);
+      if (!projectSel || !stepSel) return;
+      projectSel.addEventListener("change", () => {
+        stepSel.innerHTML = stepOptions(projectSel.value)
+          .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join("");
+      });
+    };
+    refresh("fromProject", "fromStep");
+    refresh("toProject", "toStep");
+  }
+
+  // Landkarte: Prozesse als Karten, Übergaben als beschriftete Pfeile.
+  // Die Spalte ergibt sich aus der Tiefe in der Kette (längster Pfad).
+  function renderChainMap() {
+    const host = document.getElementById("chainMap");
+    if (!host) return;
+    const links = getProcessLinks();
+    if (store.projects.length < 2) {
+      host.innerHTML = `<div class="agent-placeholder">Sobald ein zweiter Prozess angelegt ist, entsteht hier die Landkarte der Prozesskette.</div>`;
+      return;
+    }
+
+    const preds = new Map(store.projects.map((p) => [p.id, []]));
+    links.forEach((l) => { if (preds.has(l.toProject)) preds.get(l.toProject).push(l.fromProject); });
+    const depth = new Map();
+    const busy = new Set();
+    const depthOf = (id) => {
+      if (depth.has(id)) return depth.get(id);
+      if (busy.has(id)) return 0;
+      busy.add(id);
+      const ps = preds.get(id) || [];
+      const d = ps.length ? Math.max.apply(null, ps.map(depthOf)) + 1 : 0;
+      busy.delete(id);
+      depth.set(id, d);
+      return d;
+    };
+    store.projects.forEach((p) => depthOf(p.id));
+
+    const W = 250, H = 96, GAPX = 230, GAPY = 40;
+    const columns = new Map();
+    store.projects.forEach((p) => {
+      const d = depth.get(p.id) || 0;
+      if (!columns.has(d)) columns.set(d, []);
+      columns.get(d).push(p);
+    });
+    const pos = new Map();
+    let maxRows = 0;
+    Array.from(columns.keys()).sort((a, b) => a - b).forEach((d) => {
+      columns.get(d).forEach((p, row) => {
+        pos.set(p.id, { x: d * (W + GAPX), y: row * (H + GAPY) });
+        maxRows = Math.max(maxRows, row + 1);
+      });
+    });
+    const width = (Math.max.apply(null, Array.from(columns.keys())) + 1) * (W + GAPX) - GAPX + 4;
+    const height = maxRows * (H + GAPY) - GAPY + 4;
+
+    const edges = links.map((l) => {
+      const a = pos.get(l.fromProject), b = pos.get(l.toProject);
+      if (!a || !b) return "";
+      const sx = a.x + W, sy = a.y + H / 2;
+      const tx = b.x, ty = b.y + H / 2;
+      const forward = tx > sx;
+      const mid = forward ? sx + (tx - sx) / 2 : sx + 40;
+      const d = forward
+        ? `M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ty}, ${tx} ${ty}`
+        : `M ${sx} ${sy} C ${sx + 60} ${sy - 60}, ${tx - 60} ${ty - 60}, ${tx} ${ty}`;
+      const lx = forward ? (sx + tx) / 2 : (sx + tx) / 2;
+      const ly = forward ? (sy + ty) / 2 - 10 : Math.min(sy, ty) - 46;
+      // Die Beschriftung muss in die Lücke zwischen zwei Karten passen.
+      const maxChars = Math.floor((GAPX - 24) / 6.1);
+      const label = (l.artifact || "").length > maxChars
+        ? (l.artifact || "").slice(0, maxChars - 1).trim() + "…"
+        : (l.artifact || "");
+      const lw = Math.max(40, label.length * 6.1 + 16);
+      return `<path d="${d}" class="chain-edge" marker-end="url(#chainArrow)"><title>${escapeXml(l.artifact || "Übergabe")}</title></path>` +
+        (label
+          ? `<rect x="${lx - lw / 2}" y="${ly - 11}" width="${lw}" height="22" rx="11" class="chain-edge-label-bg" />
+             <text x="${lx}" y="${ly + 4}" class="chain-edge-label">${escapeXml(label)}</text>`
+          : "");
+    }).join("");
+
+    const cards = store.projects.map((p) => {
+      const pt = pos.get(p.id);
+      const active = p.id === store.currentProjectId;
+      const laneNames = p.lanes.slice(0, 3).map((l) => l.name).join(", ") + (p.lanes.length > 3 ? " …" : "");
+      return `<foreignObject x="${pt.x}" y="${pt.y}" width="${W}" height="${H}">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="chain-card${active ? " chain-card-active" : ""}" data-project-id="${escapeHtml(p.id)}">
+          <div class="chain-card-name">${escapeHtml(p.name)}</div>
+          <div class="chain-card-meta">${p.steps.length} Schritte · ${p.lanes.length} Akteure</div>
+          <div class="chain-card-lanes">${escapeHtml(laneNames || "keine Akteure")}</div>
+        </div>
+      </foreignObject>`;
+    }).join("");
+
+    host.innerHTML = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
+        font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+      <defs>
+        <marker id="chainArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="var(--text-tertiary)" />
+        </marker>
+      </defs>
+      ${edges}
+      ${cards}
+    </svg>`;
+
+    host.querySelectorAll(".chain-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        store.currentProjectId = card.dataset.projectId;
+        touch();
+        renderAll();
+        showToast("Prozess „" + getProject().name + "“ ausgewählt.");
+      });
     });
   }
 
@@ -1973,9 +2714,10 @@
     ui.section = section;
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.section === section));
     document.querySelectorAll(".section").forEach((s) => s.classList.toggle("active", s.id === "section-" + section));
-    if (section === "sipoc") { renderStepFilter(); renderSteps(); }
+    if (section === "sipoc") { renderStepFilter(); renderSipocView(); }
     if (section === "lanes") renderLanes();
     if (section === "connections") renderConnections();
+    if (section === "chain") { renderProcessLinks(); renderChainMap(); }
     if (section === "agent") { renderAgentPrompt(); renderAgentResult(); }
     if (section === "diagram") { renderDiagram(); fitZoom(); }
   }
@@ -1998,6 +2740,22 @@
     on("newConnectionBtn", "click", () => openConnectionForm(null));
 
     on("stepFilterLane", "change", renderSteps);
+
+    document.querySelectorAll(".segmented-option").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        ui.sipocView = btn.dataset.view;
+        localStorage.setItem("sipocSwimlaneStudio.sipocView", ui.sipocView);
+        renderSipocView();
+      });
+    });
+
+    on("toggleChainsBtn", "click", () => {
+      ui.showChains = !ui.showChains;
+      localStorage.setItem("sipocSwimlaneStudio.showChains", ui.showChains ? "1" : "0");
+      renderSipocView();
+    });
+
+    on("newProcessLinkBtn", "click", () => openProcessLinkForm(null));
 
     on("overlay", "click", closePanel);
     on("panelClose", "click", closePanel);
@@ -2062,6 +2820,7 @@
       const stepMap = new Map();
       p.steps.forEach((s) => { const nid = uid("step"); stepMap.set(s.id, nid); s.id = nid; s.lane = laneMap.get(s.lane) || s.lane; });
       p.connections.forEach((c) => { c.id = uid("conn"); c.from = stepMap.get(c.from) || c.from; c.to = stepMap.get(c.to) || c.to; });
+      p.steps.forEach((s) => { s.inputFrom = (s.inputFrom || []).map((q) => stepMap.get(q) || q); });
       store.projects.push(p);
       store.currentProjectId = p.id;
       touch();
@@ -2077,6 +2836,7 @@
       const p = getProject();
       if (!confirm("Projekt „" + p.name + "“ inklusive aller Akteure, Schritte und Verbindungen löschen?")) return;
       store.projects = store.projects.filter((x) => x.id !== p.id);
+      store.processLinks = getProcessLinks().filter((l) => l.fromProject !== p.id && l.toProject !== p.id);
       store.currentProjectId = store.projects[0].id;
       touch();
       renderAll();
@@ -2092,7 +2852,7 @@
         "Betrifft die automatische Speicherung in diesem Browser sowie eine ggf. verknüpfte Datei.";
       if (!confirm(msg)) return;
       const fresh = blankProject("Neuer SIPOC-Prozess");
-      store = { projects: [fresh], currentProjectId: fresh.id };
+      store = { projects: [fresh], currentProjectId: fresh.id, processLinks: [] };
       ui.stepFilterLane = "";
       touch();
       renderAll();
@@ -2119,6 +2879,9 @@
         if (parsed && Array.isArray(parsed.projects)) {
           // vollständiger Store
           parsed.projects.forEach((proj) => { if (!store.projects.some((p) => p.id === proj.id)) store.projects.push(proj); });
+          (parsed.processLinks || []).forEach((l) => {
+            if (!getProcessLinks().some((x) => x.id === l.id)) store.processLinks.push(l);
+          });
           store.currentProjectId = parsed.currentProjectId || parsed.projects[0].id;
         } else if (parsed && parsed.id && Array.isArray(parsed.steps)) {
           // einzelnes Projekt
@@ -2128,6 +2891,7 @@
         } else {
           throw new Error("Unbekanntes Format");
         }
+        normalizeStore(store);
         touch();
         renderAll();
         showToast("Import erfolgreich.");
@@ -2188,7 +2952,10 @@
       }
     });
 
-    window.addEventListener("resize", debounce(() => { if (ui.section === "diagram") fitZoom(); }, 200));
+    window.addEventListener("resize", debounce(() => {
+      if (ui.section === "diagram") fitZoom();
+      if (ui.section === "sipoc" && ui.sipocView === "board") drawSipocLinks();
+    }, 200));
   }
 
   function applyTheme() {

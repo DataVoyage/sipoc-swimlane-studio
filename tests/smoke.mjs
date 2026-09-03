@@ -618,6 +618,14 @@ const agentXmlText = fs.readFileSync(await agentXml.path(), "utf8");
 ok("9.6", agentXmlText.includes("<mxfile") && agentXmlText.includes("rhombus"),
   "draw.io-Export des übernommenen Prozesses inkl. Entscheidungsraute");
 
+// 9.10 — die vom Agenten gelieferte Artefaktkette landet in der SIPOC-Übersicht
+await agentPage.click('.nav-item[data-section="sipoc"]');
+await agentPage.click('.segmented-option[data-view="board"]');
+await agentPage.waitForTimeout(400);
+ok("9.10", (await agentPage.locator(".sipoc-chip").count()) >= 2,
+  (await agentPage.locator(".sipoc-chip").count()) + " Herkunftsangaben aus der Agentenantwort übernommen");
+await agentPage.click('.segmented-option[data-view="list"]');
+
 // 9.8 — Eingabefeld leeren setzt auch das Prüfergebnis zurück
 await agentPage.click('.nav-item[data-section="agent"]');
 await agentPage.waitForTimeout(200);
@@ -664,6 +672,172 @@ ok("5.7", clippedXml.includes("<mxfile") && clippedXml.includes("swimlane"),
 await clipContext.close();
 
 server.close();
+
+// --- AP10 Artefaktkette und Prozesskette -------------------------------------
+
+const chainPage = await browser.newPage();
+const chainErrors = [];
+chainPage.on("pageerror", (e) => chainErrors.push("PAGEERROR: " + e.message));
+chainPage.on("console", (m) => { if (m.type() === "error") chainErrors.push("CONSOLE: " + m.text()); });
+chainPage.on("dialog", (d) => d.accept());
+await chainPage.setViewportSize({ width: 1500, height: 1000 });
+await chainPage.goto(url);
+await chainPage.waitForTimeout(300);
+await chainPage.evaluate(() => localStorage.clear());
+await chainPage.reload();
+await chainPage.waitForTimeout(400);
+
+ok("10.1", (await chainPage.locator("#projectSelect option").count()) === 3,
+  "Startbestand enthält drei verkettete Prozesse");
+
+// 10.2 — SIPOC-Übersicht mit Artefaktketten
+await chainPage.click('.segmented-option[data-view="board"]');
+await chainPage.waitForTimeout(400);
+const boardRows = await chainPage.locator(".sipoc-row").count();
+const chips = await chainPage.locator(".sipoc-chip").count();
+const links = await chainPage.locator(".sipoc-link").count();
+ok("10.2", boardRows === 13 && chips > 0 && links === chips,
+  `Übersicht: ${boardRows} Zeilen, ${chips} Herkunftsangaben, ${links} Ketten`);
+
+// 10.3 — Ketten sind erst auf Zuruf sichtbar, nicht dauerhaft
+const restingOpacity = await chainPage.evaluate(() =>
+  getComputedStyle(document.querySelector(".sipoc-link")).opacity);
+await chainPage.click("#toggleChainsBtn");
+await chainPage.waitForTimeout(300);
+const shownOpacity = await chainPage.evaluate(() =>
+  getComputedStyle(document.querySelector(".sipoc-link")).opacity);
+ok("10.3", Number(restingOpacity) === 0 && Number(shownOpacity) > 0,
+  `Ruhezustand ${restingOpacity}, eingeblendet ${shownOpacity}`);
+await chainPage.click("#toggleChainsBtn");
+await chainPage.waitForTimeout(200);
+
+// 10.4 — Überfahren hebt die zusammenhängende Kette hervor
+await chainPage.locator(".sipoc-row").nth(10).hover();
+await chainPage.waitForTimeout(300);
+ok("10.4", (await chainPage.locator(".sipoc-link-active").count()) > 0 &&
+  (await chainPage.locator(".sipoc-row-linked").count()) > 0,
+  "Hervorhebung beim Überfahren einer Zeile");
+
+// 10.5 — Herkunft im Formular setzen und wieder entfernen
+await chainPage.click('.segmented-option[data-view="list"]');
+await chainPage.waitForTimeout(250);
+await chainPage.locator("#stepList .list-row", { hasText: "Rechnung erfassen und digitalisieren" }).click();
+await chainPage.waitForTimeout(250);
+const sourceBoxes = await chainPage.locator('#panelForm input[name="inputFrom"]').count();
+const checkedBefore = await chainPage.locator('#panelForm input[name="inputFrom"]:checked').count();
+await chainPage.locator('#panelForm input[name="inputFrom"]').first().uncheck();
+await chainPage.locator('#panelForm input[name="inputFrom"]').nth(2).check();
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(300);
+await chainPage.locator("#stepList .list-row", { hasText: "Rechnung erfassen und digitalisieren" }).click();
+await chainPage.waitForTimeout(250);
+const checkedAfter = await chainPage.locator('#panelForm input[name="inputFrom"]:checked').count();
+const checkedIndex = await chainPage.evaluate(() => {
+  const boxes = Array.from(document.querySelectorAll('#panelForm input[name="inputFrom"]'));
+  return boxes.findIndex((b) => b.checked);
+});
+await chainPage.click("#panelClose");
+ok("10.5", sourceBoxes === 12 && checkedBefore === 1 && checkedAfter === 1 && checkedIndex === 2,
+  `Auswahl ${sourceBoxes} Schritte, Herkunft geändert (Index ${checkedIndex})`);
+
+// 10.6 — Schritt löschen entfernt die Herkunftsverweise darauf
+await chainPage.click('.segmented-option[data-view="board"]');
+await chainPage.waitForTimeout(300);
+const chipsBeforeDelete = await chainPage.locator(".sipoc-chip").count();
+await chainPage.click('.segmented-option[data-view="list"]');
+await chainPage.locator("#stepList .list-row", { hasText: "Rückfrage an Lieferanten klären" }).click();
+await chainPage.waitForTimeout(200);
+await chainPage.click("#panelDeleteBtn");
+await chainPage.waitForTimeout(400);
+await chainPage.click('.segmented-option[data-view="board"]');
+await chainPage.waitForTimeout(300);
+const chipsAfterDelete = await chainPage.locator(".sipoc-chip").count();
+ok("10.6", chipsAfterDelete < chipsBeforeDelete,
+  `Herkunftsangaben ${chipsBeforeDelete} → ${chipsAfterDelete} nach dem Löschen eines Schritts`);
+
+// 10.7 — Duplizieren führt zu einer eigenständigen Kette in der Kopie
+await chainPage.click("#moreMenuBtn");
+await chainPage.waitForTimeout(150);
+await chainPage.click("#duplicateProjectBtn");
+await chainPage.waitForTimeout(500);
+await chainPage.click('.segmented-option[data-view="board"]');
+await chainPage.waitForTimeout(400);
+const chipsInCopy = await chainPage.locator(".sipoc-chip").count();
+ok("10.7", chipsInCopy === chipsAfterDelete && chipsInCopy > 0,
+  `Kopie hat eigene Herkunftsverweise (${chipsInCopy})`);
+
+// 10.8 — Prozesskette: Landkarte und Übergabenliste
+await chainPage.click('.nav-item[data-section="chain"]');
+await chainPage.waitForTimeout(500);
+const cards = await chainPage.locator(".chain-card").count();
+const edges = await chainPage.locator(".chain-edge").count();
+const linkRows = await chainPage.locator("#processLinkList .list-row[data-link-id]").count();
+ok("10.8", cards === 4 && edges === 2 && linkRows === 2,
+  `Landkarte: ${cards} Prozesse, ${edges} Übergaben, ${linkRows} Einträge`);
+
+// 10.9 — Verkettung anlegen, Selbstverkettung und Duplikat verhindern
+await chainPage.click("#newProcessLinkBtn");
+await chainPage.waitForTimeout(300);
+const projectValues = await chainPage.locator("#f_fromProject option").evaluateAll((o) => o.map((x) => x.value));
+await chainPage.selectOption("#f_fromProject", projectValues[0]);
+await chainPage.selectOption("#f_toProject", projectValues[0]);
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(250);
+ok("10.9a", (await chainPage.locator("#toast").textContent()).includes("nicht mit sich selbst"),
+  "Selbstverkettung wird verhindert");
+await chainPage.selectOption("#f_toProject", projectValues[3]);
+await chainPage.fill("#f_artifact", "Geprüfte Vergabeunterlagen");
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(400);
+ok("10.9b", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 3 &&
+  (await chainPage.locator(".chain-edge").count()) === 3,
+  "neue Verkettung erscheint in Liste und Landkarte");
+
+await chainPage.click("#newProcessLinkBtn");
+await chainPage.waitForTimeout(250);
+await chainPage.selectOption("#f_fromProject", projectValues[0]);
+await chainPage.selectOption("#f_toProject", projectValues[3]);
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(250);
+ok("10.9c", (await chainPage.locator("#toast").textContent()).includes("existiert bereits"),
+  "doppelte Verkettung wird verhindert");
+await chainPage.click("#panelClose");
+
+// 10.10 — Verkettung bearbeiten und löschen
+await chainPage.locator("#processLinkList .list-row[data-link-id]").last().click();
+await chainPage.waitForTimeout(250);
+await chainPage.fill("#f_artifact", "Freigegebene Vergabeunterlagen");
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(300);
+const editedBadge = await chainPage.locator("#processLinkList .list-row[data-link-id]").last().innerText();
+await chainPage.locator("#processLinkList .list-row[data-link-id]").last().click();
+await chainPage.waitForTimeout(250);
+await chainPage.click("#panelDeleteBtn");
+await chainPage.waitForTimeout(300);
+ok("10.10", editedBadge.includes("Freigegebene Vergabeunterlagen") &&
+  (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 2,
+  "Verkettung bearbeitet und wieder gelöscht");
+
+// 10.11 — Klick auf eine Prozesskarte wechselt den aktiven Prozess
+const otherCard = chainPage.locator(".chain-card").first();
+const otherName = (await otherCard.locator(".chain-card-name").textContent()).trim();
+await otherCard.click();
+await chainPage.waitForTimeout(400);
+ok("10.11", (await chainPage.locator("#projectNameInput").inputValue()) === otherName,
+  `Wechsel per Landkarte auf „${otherName}“`);
+
+// 10.12 — Projekt löschen entfernt seine Verkettungen
+await chainPage.click("#moreMenuBtn");
+await chainPage.waitForTimeout(150);
+await chainPage.click("#deleteProjectBtn");
+await chainPage.waitForTimeout(500);
+await chainPage.click('.nav-item[data-section="chain"]');
+await chainPage.waitForTimeout(400);
+ok("10.12", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 1,
+  "Verkettungen des gelöschten Prozesses sind entfernt");
+
+ok("10.13", chainErrors.length === 0, chainErrors.join(" | ") || "keine JS-Fehler in den neuen Ansichten");
+await chainPage.close();
 
 // --- Auswertung -------------------------------------------------------------
 
