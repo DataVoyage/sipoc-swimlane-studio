@@ -7,10 +7,10 @@
 <meta name="description" content="Leichtgewichtige Standalone-Web-App zum Erfassen von SIPOC-Prozessen und zur automatischen Darstellung als Swimlane-Diagramm mit draw.io-Export." />
 <!-- Version steuert das Cache-Busting der Assets und wird von app.js gegengeprüft.
      Bei jeder Änderung an styles.css oder app.js mit erhöhen. -->
-<meta name="app-version" content="1.5.0" />
+<meta name="app-version" content="1.6.0" />
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>" />
-<link rel="stylesheet" href="styles.css?v=1.5.0" />
+<link rel="stylesheet" href="styles.css?v=1.6.0" />
 </head>
 <body>
 <div id="app">
@@ -112,6 +112,8 @@
       <button class="nav-item" data-section="chain"><span class="nav-icon">⛓️</span><span>Prozesskette</span></button>
       <button class="nav-item" data-section="agent"><span class="nav-icon">🤖</span><span>Import vom Agent</span></button>
       <button class="nav-item" data-section="diagram"><span class="nav-icon">🧭</span><span>Swimlane-Diagramm</span></button>
+      <div class="nav-separator" aria-hidden="true"></div>
+      <button class="nav-item" data-section="guide"><span class="nav-icon">📖</span><span>Anleitung</span></button>
       <div class="sidebar-footer">
         <p>Läuft vollständig lokal im Browser. Es werden keine Daten an einen Server gesendet.</p>
         <p class="sidebar-version">Version <span id="versionLabel">—</span></p>
@@ -227,6 +229,183 @@
         </div>
       </section>
 
+
+      <section id="section-guide" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Anleitung</h1>
+            <p class="section-subtitle">Von der leeren Seite zum Swimlane-Diagramm in Confluence.</p>
+          </div>
+        </div>
+
+        <div class="guide-lead">
+          <p><strong>Was dieses Werkzeug macht:</strong> Du erfasst einen Prozess einmal als SIPOC-Tabelle —
+          wer liefert was zu, was passiert damit, was kommt heraus, wer bekommt es. Daraus entsteht
+          automatisch ein Swimlane-Diagramm, das sich als draw.io-Datei exportieren und in Confluence
+          einbinden lässt. Alles läuft im Browser, es werden keine Daten an einen Server gesendet.</p>
+          <p>Beim ersten Öffnen sind drei Beispielprozesse geladen, damit du alles ausprobieren kannst.
+          Wenn du mit deinem eigenen Prozess starten willst, entferne sie über
+          <em>Aktionen → Alle Daten löschen</em>.</p>
+        </div>
+
+        <h2 class="guide-heading">In fünf Schritten zum Diagramm</h2>
+
+        <div class="guide-steps">
+          <div class="guide-step">
+            <span class="guide-step-num">1</span>
+            <div class="guide-step-body">
+              <h3>Akteure anlegen</h3>
+              <p>Akteure sind die Zeilen (Swimlanes) deines Diagramms: Rollen, Abteilungen, Systeme oder
+              externe Partner. Beginne mit der auslösenden Seite — oft ist das jemand von außen, etwa ein
+              Kunde oder Lieferant. Die Reihenfolge der Akteure bestimmt die Reihenfolge der Zeilen im
+              Diagramm; sie lässt sich jederzeit mit den Pfeilen ändern.</p>
+              <button class="btn btn-ghost btn-small guide-jump" data-goto="lanes" type="button">Zu den Akteuren →</button>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <span class="guide-step-num">2</span>
+            <div class="guide-step-body">
+              <h3>Prozessschritte erfassen</h3>
+              <p>Jede Zeile der SIPOC-Tabelle ist ein Schritt. Neben Name und Akteur füllst du die vier
+              SIPOC-Felder aus — sie sind der eigentliche Gehalt der Methode:</p>
+              <ul class="guide-list">
+                <li><strong>Supplier</strong> — wer den Input für diesen Schritt liefert.</li>
+                <li><strong>Input</strong> — was hineingeht: Beleg, Datensatz, Information.</li>
+                <li><strong>Process</strong> — die Tätigkeit selbst, als Verb formuliert
+                  („Rechnung sachlich prüfen“).</li>
+                <li><strong>Output</strong> — was dabei herauskommt.</li>
+                <li><strong>Customer</strong> — wer den Output empfängt oder weiterverarbeitet.</li>
+              </ul>
+              <p>Die Tabelle ist bewusst schlicht: Hier wird erfasst und gepflegt. Wie die Schritte
+              zusammenhängen, siehst du später im Diagramm.</p>
+              <button class="btn btn-ghost btn-small guide-jump" data-goto="sipoc" type="button">Zur SIPOC-Tabelle →</button>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <span class="guide-step-num">3</span>
+            <div class="guide-step-body">
+              <h3>Schritt-Typ wählen</h3>
+              <p>Der Typ bestimmt die Form im Diagramm:</p>
+              <table class="guide-table">
+                <thead><tr><th>Typ</th><th>Wofür</th><th>Form</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>Trigger</strong></td><td>Das auslösende Ereignis, das den Prozess anstößt — „Rechnung geht ein“, „Monatsletzter erreicht“.</td><td>Ellipse</td></tr>
+                  <tr><td><strong>Start</strong></td><td>Der erste aktiv ausgeführte Schritt.</td><td>Abgerundet</td></tr>
+                  <tr><td><strong>Aufgabe</strong></td><td>Ein gewöhnlicher Arbeitsschritt.</td><td>Rechteck</td></tr>
+                  <tr><td><strong>Entscheidung</strong></td><td>Eine Verzweigung. Formuliere den Namen als Frage („Betrag über 5.000 €?“).</td><td>Raute</td></tr>
+                  <tr><td><strong>Ende</strong></td><td>Der Abschluss eines Ablaufwegs — davon darf es mehrere geben, etwa für Ablehnungen.</td><td>Abgerundet</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <span class="guide-step-num">4</span>
+            <div class="guide-step-body">
+              <h3>Schritte verbinden</h3>
+              <p>Verbindungen legen den Ablauf fest — aus ihnen berechnet sich das Diagramm. Bei
+              Entscheidungen beschriftest du jeden Zweig („Ja“ / „Nein“), damit das Diagramm lesbar
+              bleibt. Rückschleifen sind erlaubt und erwünscht: Führt ein Schritt zurück zu einem
+              früheren, etwa bei einer Nachbesserung, erkennt die App das und zeichnet die Kante
+              gestrichelt unterhalb des Ablaufs.</p>
+              <button class="btn btn-ghost btn-small guide-jump" data-goto="connections" type="button">Zu den Verbindungen →</button>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <span class="guide-step-num">5</span>
+            <div class="guide-step-body">
+              <h3>Diagramm ansehen und exportieren</h3>
+              <p>Das Swimlane-Diagramm entsteht automatisch — du musst nichts positionieren. Mit
+              <em>Als draw.io exportieren</em> lädst du eine <code>.drawio.xml</code>-Datei herunter,
+              alternativ legt <em>XML kopieren</em> denselben Inhalt in die Zwischenablage.</p>
+              <button class="btn btn-ghost btn-small guide-jump" data-goto="diagram" type="button">Zum Diagramm →</button>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="guide-heading">In Confluence einbinden</h2>
+        <div class="guide-card">
+          <ol class="guide-ol">
+            <li>In der App: <em>Swimlane-Diagramm → Als draw.io exportieren</em>.</li>
+            <li>In Confluence auf der Zielseite über „+“ ein <strong>Draw.io</strong>-Diagramm einfügen.</li>
+            <li>Im draw.io-Editor: <em>Datei → Von Gerät importieren</em> und die heruntergeladene Datei
+              auswählen. Hast du stattdessen das XML kopiert, nutze
+              <em>Extras → Bearbeiten → Diagramm</em> und füge es dort ein.</li>
+            <li>Speichern. Das Diagramm liegt danach als natives, weiter bearbeitbares draw.io-Diagramm
+              auf der Seite — Akteure sind echte Swimlane-Container, die sich samt ihrer Schritte
+              verschieben lassen.</li>
+          </ol>
+        </div>
+
+        <h2 class="guide-heading">Weiterführend</h2>
+        <div class="guide-grid">
+          <div class="guide-card">
+            <h3>Artefaktkette</h3>
+            <p>Beim Bearbeiten eines Schritts kannst du unter <em>„Input stammt aus dem Output von“</em>
+            angeben, woher sein Input kommt — auch aus mehreren Schritten, wenn zwei Wege zusammenlaufen.
+            In der Tabelle erscheint das als Zeile „aus: …“, im Diagramm lässt sich über
+            <em>Artefakte anzeigen</em> das übergebene Ergebnis an den Verbindungen einblenden.</p>
+          </div>
+          <div class="guide-card">
+            <h3>Prozesskette</h3>
+            <p>Größere Abläufe bestehen aus mehreren Prozessen. Unter <em>Prozesskette</em> hältst du
+            fest, welcher Prozess welchem zuarbeitet und über welches Artefakt — wahlweise bis auf den
+            genauen Schritt. Daraus entsteht eine Landkarte; ein Klick auf eine Karte wechselt dorthin.</p>
+            <button class="btn btn-ghost btn-small guide-jump" data-goto="chain" type="button">Zur Prozesskette →</button>
+          </div>
+          <div class="guide-card">
+            <h3>Von einem KI-Agenten erstellen lassen</h3>
+            <p>Statt alles von Hand zu erfassen, kannst du einen KI-Agenten den Prozess ausarbeiten
+            lassen. Die App liefert dazu einen fertigen Prompt und prüft die Antwort; bei Fehlern
+            bekommst du eine Mängelliste, die sich direkt an den Agenten zurückgeben lässt.</p>
+            <button class="btn btn-ghost btn-small guide-jump" data-goto="agent" type="button">Zum Agenten-Import →</button>
+          </div>
+          <div class="guide-card">
+            <h3>Deine Daten</h3>
+            <p>Alles wird automatisch im Browser gespeichert. Über <em>Aktionen</em> kannst du zusätzlich
+            eine lokale Datei verknüpfen (Chrome/Edge), Projekte als Datei exportieren und importieren
+            oder die ganze App als einzelne HTML-Datei herunterladen, die offline per Doppelklick läuft.</p>
+          </div>
+        </div>
+
+        <h2 class="guide-heading">Häufige Fragen</h2>
+        <div class="guide-card guide-faq">
+          <details>
+            <summary>Wie werde ich die Beispieldaten los?</summary>
+            <p><em>Aktionen → Alle Daten löschen</em> entfernt alle Projekte und legt ein leeres an.
+            Willst du nur einzelne Projekte entfernen, nutze <em>Aktionen → Projekt löschen</em>.</p>
+          </details>
+          <details>
+            <summary>Sehen andere meine Daten, wenn wir dieselbe Adresse öffnen?</summary>
+            <p>Nein. Die Seite liefert nur das Programm aus; die Daten entstehen und bleiben im
+            jeweiligen Browser. Zum Teilen exportierst du ein Projekt als Datei oder gibst die
+            heruntergeladene HTML-Datei weiter.</p>
+          </details>
+          <details>
+            <summary>Ich sehe einen alten Stand der App.</summary>
+            <p>Der Browser hält die Seite eine Weile im Zwischenspeicher. Die App prüft selbst, ob eine
+            neuere Fassung vorliegt, und blendet dann oben einen Hinweis mit „Jetzt aktualisieren“ ein.
+            Sofort hilft ein erzwungenes Neuladen mit <kbd>Strg</kbd>+<kbd>F5</kbd>
+            (macOS: <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).</p>
+          </details>
+          <details>
+            <summary>Muss ich das Diagramm selbst anordnen?</summary>
+            <p>Nein. Die Spalte eines Schritts ergibt sich aus den Verbindungen, die Zeile aus dem
+            Akteur. Wenn dir die Anordnung im Diagramm nicht gefällt, ändere die Reihenfolge der Akteure
+            oder die Verbindungen — oder verschiebe die Kästen nach dem Export in draw.io.</p>
+          </details>
+          <details>
+            <summary>Wie viele Schritte verträgt ein Prozess?</summary>
+            <p>Technisch beliebig viele. Fachlich wird ein Swimlane-Diagramm ab etwa 25 Schritten
+            unübersichtlich — dann lohnt es sich, den Ablauf in zwei Prozesse zu teilen und sie unter
+            <em>Prozesskette</em> miteinander zu verbinden.</p>
+          </details>
+        </div>
+      </section>
+
       <section id="section-diagram" class="section">
         <div class="section-header">
           <div>
@@ -269,6 +448,6 @@
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=1.5.0"></script>
+<script src="app.js?v=1.6.0"></script>
 </body>
 </html>

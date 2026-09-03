@@ -47,8 +47,12 @@ IT-Betrieb, Onboarding, …), nicht nur für einen bestimmten Anwendungsfall.
 - **CRUD an jeder Stelle** — Anlegen, Bearbeiten, Löschen für Projekte,
   Akteure, Prozessschritte und Verbindungen, jeweils mit Validierung
   (z. B. keine Selbstverbindung, kein Löschen eines noch verwendeten Akteurs).
-- **Hell-/Dunkelmodus**, System-Schriftstapel, gruppierte Listen statt
-  Rohtabellen — angelehnt an die Apple Human Interface Guidelines.
+- **Anleitung in der App** — ein eigener Reiter führt in fünf Schritten vom
+  leeren Projekt zum Diagramm in Confluence, erklärt die SIPOC-Felder und die
+  Schritt-Typen und beantwortet häufige Fragen. Die Sprungmarken führen direkt
+  in den jeweils beschriebenen Bereich.
+- **Hell-/Dunkelmodus**, System-Schriftstapel und ruhige Gestaltung —
+  angelehnt an die Apple Human Interface Guidelines.
 
 ![Swimlane-Diagramm](docs/images/swimlane-diagramm-hell.png)
 
@@ -165,6 +169,16 @@ examples/     Beispielprojekt als .sipoc.json und bereits exportierte
               .drawio.xml
 docs/         Vorgangskatalog und Screenshots
 ```
+
+## Anleitung
+
+Die App bringt ihre eigene Anleitung mit: Reiter **Anleitung** in der
+Seitenleiste. Sie führt in fünf Schritten durch Akteure, Prozessschritte,
+Schritt-Typen, Verbindungen und Export, erklärt den Weg nach Confluence und
+beantwortet häufige Fragen. Die folgenden Abschnitte hier im README gehen
+darüber hinaus und richten sich an alle, die das Repository selbst betreuen.
+
+![Anleitung](docs/images/anleitung.png)
 
 ## Erfassen und Darstellen sind getrennt
 

@@ -16,7 +16,7 @@
   // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
   // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
   // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
-  const APP_VERSION = "1.5.0";
+  const APP_VERSION = "1.6.0";
 
   const STEP_TYPES = {
     trigger:  { label: "Trigger",       shape: "event",       color: "var(--purple)", order: 0 },
@@ -2622,6 +2622,11 @@
     on("stepFilterLane", "change", renderStepTable);
 
     on("newProcessLinkBtn", "click", () => openProcessLinkForm(null));
+
+    // Die Anleitung verweist auf die Bereiche, die sie beschreibt.
+    document.querySelectorAll(".guide-jump").forEach((btn) => {
+      btn.addEventListener("click", () => showSection(btn.dataset.goto));
+    });
 
     on("overlay", "click", closePanel);
     on("panelClose", "click", closePanel);

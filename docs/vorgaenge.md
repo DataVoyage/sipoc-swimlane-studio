@@ -7,7 +7,7 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (03.09.2026):** 85 der 89 Vorgänge sind über
+**Stand der Prüfung (03.09.2026):** 90 der 94 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
 (Playwright/Chromium, `npm test`) — überwiegend gegen die ausgelieferte
 `index.html` per `file://`; die Vorgänge rund um Auslieferung, Zwischenablage
@@ -167,6 +167,16 @@ der Rückmeldung stehen muss.
 | 10.13 | Auf eine Prozesskarte in der Landkarte klicken | Der angeklickte Prozess wird zum aktiven Prozess in allen Ansichten | ✅ |
 | 10.14 | Prozess löschen, der Teil einer Kette ist | Seine Übergaben werden mitentfernt; die übrige Kette bleibt bestehen | ✅ |
 | 10.15 | Agentenantwort mit `inputFrom` und `trigger` importieren | Artefaktkette und Trigger werden übernommen; unbekannte oder auf sich selbst verweisende Schlüssel werden beanstandet | ✅ |
+
+## AP11 — Anleitung in der App
+
+| # | Vorgang | Erwartetes Ergebnis | Geprüft |
+|---|---|---|---|
+| 11.1 | Reiter „Anleitung“ öffnen | Anleitung erscheint und führt in fünf nummerierten Schritten vom leeren Projekt zum Diagramm | ✅ |
+| 11.2 | Inhaltliche Vollständigkeit | Die SIPOC-Felder, die Schritt-Typen, der Weg nach Confluence, Artefakt- und Prozesskette sowie das Entfernen der Beispieldaten sind erklärt | ✅ |
+| 11.3 | Übersicht der Schritt-Typen | Alle fünf Typen (Trigger, Start, Aufgabe, Entscheidung, Ende) sind mit Verwendungszweck und Form aufgeführt | ✅ |
+| 11.4 | Sprungmarken in der Anleitung | Jede Schaltfläche wechselt in den beschriebenen Bereich (Akteure, SIPOC-Tabelle, Verbindungen, Diagramm, Prozesskette, Agenten-Import) | ✅ |
+| 11.5 | Häufige Fragen | Die Fragen lassen sich einzeln aufklappen | ✅ |
 
 ## Smoke-Test ausführen
 

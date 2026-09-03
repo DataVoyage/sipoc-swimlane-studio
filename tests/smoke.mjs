@@ -902,6 +902,55 @@ ok("10.14", (await chainPage.locator("#processLinkList .list-row[data-link-id]")
 ok("10.15", chainErrors.length === 0, chainErrors.join(" | ") || "keine JS-Fehler in den neuen Ansichten");
 await chainPage.close();
 
+// --- AP11 Anleitung ----------------------------------------------------------
+
+const guidePage = await browser.newPage();
+const guideErrors = [];
+guidePage.on("pageerror", (e) => guideErrors.push("PAGEERROR: " + e.message));
+guidePage.on("console", (m) => { if (m.type() === "error") guideErrors.push("CONSOLE: " + m.text()); });
+await guidePage.goto(url);
+await guidePage.waitForTimeout(400);
+
+await guidePage.click('.nav-item[data-section="guide"]');
+await guidePage.waitForTimeout(300);
+ok("11.1", (await guidePage.locator("#section-guide.active").count()) === 1 &&
+  (await guidePage.locator(".guide-step").count()) === 5,
+  "Anleitung ist über die Seitenleiste erreichbar und führt durch fünf Schritte");
+
+const guideText = await guidePage.locator("#section-guide").innerText();
+const begriffe = ["Supplier", "Input", "Process", "Output", "Customer", "Trigger", "Entscheidung",
+  "draw.io", "Confluence", "Prozesskette", "Artefakt", "Alle Daten löschen"];
+const fehlend = begriffe.filter((b) => !guideText.includes(b));
+ok("11.2", fehlend.length === 0, fehlend.length ? "fehlt: " + fehlend.join(", ") : "alle Kernbegriffe erklärt");
+
+ok("11.3", (await guidePage.locator(".guide-table tbody tr").count()) === 5,
+  "alle fünf Schritt-Typen sind in der Übersicht erklärt");
+
+// 11.4 — die Sprungmarken führen tatsächlich in die beschriebenen Bereiche
+const jumps = await guidePage.locator(".guide-jump").evaluateAll((els) => els.map((e) => e.dataset.goto));
+let jumpFailures = [];
+for (const target of jumps) {
+  await guidePage.click('.nav-item[data-section="guide"]');
+  await guidePage.waitForTimeout(120);
+  await guidePage.click(`.guide-jump[data-goto="${target}"]`);
+  await guidePage.waitForTimeout(250);
+  if ((await guidePage.locator(`#section-${target}.active`).count()) !== 1) jumpFailures.push(target);
+}
+ok("11.4", jumps.length >= 5 && jumpFailures.length === 0,
+  jumpFailures.length ? "ohne Wirkung: " + jumpFailures.join(", ") : jumps.length + " Sprungmarken führen ans Ziel");
+
+// 11.5 — die häufigen Fragen lassen sich aufklappen
+await guidePage.click('.nav-item[data-section="guide"]');
+await guidePage.waitForTimeout(200);
+const faqCount = await guidePage.locator(".guide-faq details").count();
+await guidePage.locator(".guide-faq summary").first().click();
+await guidePage.waitForTimeout(200);
+ok("11.5", faqCount >= 5 && (await guidePage.locator(".guide-faq details[open]").count()) === 1,
+  faqCount + " Fragen, aufklappbar");
+
+ok("11.6", guideErrors.length === 0, guideErrors.join(" | ") || "keine JS-Fehler in der Anleitung");
+await guidePage.close();
+
 // --- Auswertung -------------------------------------------------------------
 
 console.log("\n===== Vorgangskatalog-Smoke-Test =====");
