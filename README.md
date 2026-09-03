@@ -21,15 +21,18 @@ IT-Betrieb, Onboarding, …), nicht nur für einen bestimmten Anwendungsfall.
 ## Funktionsüberblick
 
 - **SIPOC-Tabelle** — Prozessschritte mit Supplier, Input, Process, Output und
-  Customer, als gruppierte Liste statt roher Tabelle, filterbar nach Akteur.
+  Customer als echte Tabelle, filterbar nach Akteur. Diese Ansicht dient dem
+  Anlegen und Pflegen und stellt die Daten bewusst nur tabellarisch dar;
+  wie die Schritte zusammenhängen, zeigen die Prozess-Sichten.
 - **Akteure** — die Swimlanes des Diagramms (Rollen, Abteilungen, Systeme),
   inklusive Reihenfolge und Farbe.
 - **Verbindungen** — verknüpft Prozessschritte zu einem Ablauf, inklusive
   Beschriftung für Entscheidungszweige (z. B. „Ja“ / „Nein“).
-- **SIPOC-Übersicht** — dieselben Daten als fünfspaltige Darstellung
-  (Supplier · Input · Process · Output · Customer) mit sichtbarer
-  Artefaktkette: Wo der Input eines Schritts aus dem Output eines anderen
-  stammt, ist die Herkunft angegeben und lässt sich als Kurve einblenden.
+- **Schritt-Typen** — Trigger (auslösendes Ereignis), Start, Aufgabe,
+  Entscheidung und Ende, jeweils mit eigener Form im Diagramm und im Export.
+- **Artefaktkette** — bei jedem Schritt lässt sich hinterlegen, aus wessen
+  Output sich sein Input speist. In der Tabelle steht das als Herkunftsangabe,
+  im Diagramm lassen sich die Artefakte an den Verbindungen einblenden.
 - **Prozesskette** — Verkettung ganzer Prozesse untereinander samt Landkarte:
   welcher Prozess welchem zuarbeitet und über welches Artefakt.
 - **Swimlane-Diagramm** — wird automatisch aus Akteuren, Schritten und
@@ -163,30 +166,32 @@ examples/     Beispielprojekt als .sipoc.json und bereits exportierte
 docs/         Vorgangskatalog und Screenshots
 ```
 
-## SIPOC-Übersicht und Prozesskette
+## Erfassen und Darstellen sind getrennt
 
-Die SIPOC-Tabelle lässt sich zwischen zwei Sichten umschalten: der **Liste**
-zum Pflegen und der **Übersicht** zum Lesen. Die Übersicht stellt jede Zeile
-als klassische SIPOC-Zeile dar — Supplier, Input, Process, Output, Customer
-nebeneinander — und macht dabei sichtbar, wie die Zeilen zusammenhängen.
+Die **SIPOC-Tabelle** ist die Erfassungsansicht: eine schlichte Tabelle mit den
+Spalten Typ, Akteur, Supplier, Input, Process, Output und Customer, in der
+Reihenfolge des Ablaufs. Ein Klick auf eine Zeile öffnet sie zum Bearbeiten.
+Hier geht es um das Anlegen und Pflegen der Schritte — nicht um Grafik.
 
-![SIPOC-Übersicht](docs/images/sipoc-uebersicht.png)
+![SIPOC-Tabelle](docs/images/sipoc-tabelle-hell.png)
 
-Dafür kann bei jedem Schritt hinterlegt werden, **aus wessen Output sich sein
-Input speist** (Feld „Input stammt aus dem Output von“, Mehrfachauswahl). In
-der Übersicht erscheint die Herkunft dann als Angabe in der Input-Karte, am
-Output steht, wie viele Schritte er speist. Über „Ketten einblenden“ oder durch
-Überfahren einer Zeile werden die Verbindungen als Kurven sichtbar; ein Klick
-auf eine Herkunftsangabe springt zur Quelle. Im Ruhezustand bleiben die Kurven
-ausgeblendet, damit die Ansicht ruhig bleibt.
+Wie die Schritte **zusammenhängen**, zeigen die Prozess-Sichten:
 
-Eine Ebene darüber steht die **Prozesskette**: Dort wird festgehalten, welcher
-Prozess welchem zuarbeitet — mit dem übergebenen Artefakt und wahlweise dem
-genauen Schritt, an dem die Übergabe stattfindet. Daraus entsteht eine
-Landkarte der Prozesslandschaft; ein Klick auf eine Karte wechselt zum
-jeweiligen Prozess.
+- Das **Swimlane-Diagramm** stellt den Ablauf dar. Über „Artefakte anzeigen“
+  tragen die Verbindungen zusätzlich das übergebene Artefakt — überall dort,
+  wo beim Zielschritt hinterlegt ist, dass sein Input aus dem Output des
+  Vorgängers stammt (Feld „Input stammt aus dem Output von“, Mehrfachauswahl).
+  Eigene Beschriftungen wie „Ja“/„Nein“ haben Vorrang, damit Verzweigungen
+  lesbar bleiben.
+- Die **Prozesskette** arbeitet eine Ebene höher: Dort wird festgehalten,
+  welcher Prozess welchem zuarbeitet — mit dem übergebenen Artefakt und
+  wahlweise dem genauen Schritt, an dem die Übergabe stattfindet. Daraus
+  entsteht eine Landkarte; ein Klick auf eine Karte wechselt zum Prozess.
 
 ![Prozesskette](docs/images/prozesskette.png)
+
+In der Tabelle erscheint die Artefaktherkunft lediglich als Textzeile
+(„aus: Rechnung erfassen und digitalisieren“) — als Angabe, nicht als Grafik.
 
 Der mitgelieferte Beispielbestand zeigt beides an drei aufeinander aufbauenden
 Prozessen eines fiktiven Ingenieurbüros: „Beschaffungsantrag freigeben“ →
@@ -261,14 +266,24 @@ npx playwright install --with-deps chromium   # einmalig
 npm test
 ```
 
-**Wichtig beim Ändern von `styles.css` oder `app.js`:** Die Versionsnummer in
-`index.html` (`<meta name="app-version">`, `styles.css?v=…`, `app.js?v=…`) und
-die Konstante `APP_VERSION` in `app.js` müssen gemeinsam erhöht werden.
-GitHub Pages liefert alle Dateien mit `cache-control: max-age=600` aus, sodass
-ein Browser sonst eine neue `index.html` mit einer alten `app.js` mischen kann
-— dann sind Bedienelemente sichtbar, tun beim Klick aber nichts. Der
-Versionsparameter erzwingt das Nachladen, und stimmen die beiden Werte doch
-einmal nicht überein, blendet die App oben einen Hinweis zum Neuladen ein.
+**Wichtig beim Ändern von `styles.css` oder `app.js`:** Die Versionsnummer muss
+an fünf Stellen gemeinsam erhöht werden — in `index.html`
+(`<meta name="app-version">`, `styles.css?v=…`, `app.js?v=…`), in `app.js`
+(`APP_VERSION`), in `version.json` und in `package.json`. Der Smoke-Test prüft
+das als Erstes (Vorgang 8.0) und schlägt bei Abweichung fehl.
+GitHub Pages liefert alle Dateien mit `cache-control: max-age=600` aus. Das
+betrifft zwei Fälle:
+
+1. Eine neue `index.html` trifft auf eine alte `app.js` — dann wären
+   Bedienelemente sichtbar, täten beim Klick aber nichts. Der Versionsparameter
+   an den Asset-Adressen verhindert das; weichen die Werte trotzdem ab, blendet
+   die App eine Hinweisleiste ein.
+2. Die `index.html` selbst liegt noch im Zwischenspeicher — dann sieht man
+   einen vollständig veralteten, in sich stimmigen Stand, ohne es zu merken.
+   Dagegen fragt die App beim Start und beim Zurückkehren auf den Tab die
+   Datei `version.json` unzwischengespeichert ab und bietet bei einer neueren
+   Fassung das Neuladen an (über eine Adresse mit Zeitstempel, weil ein
+   einfaches Neuladen erneut die alte Seite liefern würde).
 
 ## Lizenz
 

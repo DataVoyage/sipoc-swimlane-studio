@@ -16,13 +16,14 @@
   // Muss mit <meta name="app-version"> in index.html übereinstimmen. Weicht sie
   // ab, hat der Browser eine der beiden Dateien aus einem veralteten Cache
   // geladen — dann fehlen Bedienelemente oder deren Funktion stillschweigend.
-  const APP_VERSION = "1.4.0";
+  const APP_VERSION = "1.5.0";
 
   const STEP_TYPES = {
-    start:    { label: "Start",         shape: "terminator", color: "var(--green)",  order: 0 },
-    task:     { label: "Aufgabe",       shape: "rect",        color: "var(--accent)", order: 1 },
-    decision: { label: "Entscheidung",  shape: "rhombus",     color: "var(--orange)", order: 2 },
-    end:      { label: "Ende",          shape: "terminator",  color: "var(--red)",    order: 3 },
+    trigger:  { label: "Trigger",       shape: "event",       color: "var(--purple)", order: 0 },
+    start:    { label: "Start",         shape: "terminator",  color: "var(--green)",  order: 1 },
+    task:     { label: "Aufgabe",       shape: "rect",        color: "var(--accent)", order: 2 },
+    decision: { label: "Entscheidung",  shape: "rhombus",     color: "var(--orange)", order: 3 },
+    end:      { label: "Ende",          shape: "terminator",  color: "var(--red)",    order: 4 },
   };
 
   const LANE_COLORS = [
@@ -455,8 +456,7 @@
   let ui = {
     section: "sipoc",
     stepFilterLane: "",
-    sipocView: localStorage.getItem("sipocSwimlaneStudio.sipocView") || "list",
-    showChains: localStorage.getItem("sipocSwimlaneStudio.showChains") === "1",
+    showArtifacts: localStorage.getItem("sipocSwimlaneStudio.showArtifacts") === "1",
     zoom: 1,
     theme: localStorage.getItem("sipocSwimlaneStudio.theme") || "auto",
   };
@@ -916,13 +916,23 @@
     });
     const stepById = new Map(stepsOut.map((s) => [s.id, s]));
 
-    const connsOut = conns.map((c) => ({
-      id: c.id,
-      from: c.from,
-      to: c.to,
-      label: c.label,
-      isBackEdge: backEdgeIds.has(c.id),
-    }));
+    // Ist beim Zielschritt hinterlegt, dass sein Input aus dem Output dieses
+    // Quellschritts stammt, kann die Kante das Artefakt tragen. Ein eigenes
+    // Label (Ja/Nein) hat Vorrang, sonst würde die Verzweigung unlesbar.
+    const stepDataById = new Map(steps.map((s) => [s.id, s]));
+    const connsOut = conns.map((c) => {
+      const target = stepDataById.get(c.to);
+      const source = stepDataById.get(c.from);
+      const carriesArtifact = !!(target && (target.inputFrom || []).indexOf(c.from) !== -1 && source && source.output);
+      return {
+        id: c.id,
+        from: c.from,
+        to: c.to,
+        label: c.label,
+        artifact: carriesArtifact ? source.output : "",
+        isBackEdge: backEdgeIds.has(c.id),
+      };
+    });
 
     return { lanes: laneGeom, steps: stepsOut, stepById, connections: connsOut, width, height, maxDepth };
   }
@@ -930,6 +940,10 @@
   /* -------------------------------------------------------- SVG Rendering */
 
   function shapePath(type, x, y, w, h) {
+    if (type === "trigger") {
+      const rx = w / 2, ry = h / 2, cx = x + rx, cy = y + ry;
+      return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
+    }
     if (type === "decision") {
       const cx = x + w / 2, cy = y + h / 2;
       return `M ${cx} ${y} L ${x + w} ${cy} L ${cx} ${y + h} L ${x} ${cy} Z`;
@@ -996,13 +1010,17 @@
       const d = edgeRoute(from, to, c.isBackEdge, layout.lanes.length, LAYOUT.stepHeight, dedupeIndex);
       const strokeColor = c.isBackEdge ? "var(--orange)" : "var(--text-tertiary)";
       parts.push(`<path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="1.6" marker-end="url(#arrow)" ${c.isBackEdge ? 'stroke-dasharray="5,4"' : ""}></path>`);
-      if (c.label) {
+      const edgeLabel = c.label || (ui.showArtifacts && c.artifact
+        ? (c.artifact.length > 34 ? c.artifact.slice(0, 33).trim() + "…" : c.artifact)
+        : "");
+      if (edgeLabel) {
         // Label-Position: Mittelpunkt der Route grob am ersten horizontalen Segment
         const lx = c.isBackEdge ? (from.x + from.w / 2 + to.x + to.w / 2) / 2 : (from.x + from.w + to.x) / 2;
         const ly = c.isBackEdge ? Math.max(from.y + from.h, to.y + to.h) + 26 + dedupeIndex * 16 : (from.y + from.h / 2 + to.y + to.h / 2) / 2;
-        const lw = Math.max(28, c.label.length * 6.4 + 14);
-        parts.push(`<rect x="${lx - lw / 2}" y="${ly - 10}" width="${lw}" height="20" rx="10" fill="var(--bg-elevated)" stroke="var(--separator)"></rect>`);
-        parts.push(`<text x="${lx}" y="${ly + 4}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--text-secondary)">${escapeXml(c.label)}</text>`);
+        const lw = Math.max(28, edgeLabel.length * 6.4 + 14);
+        const isArtifact = !c.label;
+        parts.push(`<rect x="${lx - lw / 2}" y="${ly - 10}" width="${lw}" height="20" rx="10" fill="var(--bg-elevated)" stroke="${isArtifact ? "var(--accent)" : "var(--separator)"}"></rect>`);
+        parts.push(`<text x="${lx}" y="${ly + 4}" font-size="10.5" font-weight="600" text-anchor="middle" fill="${isArtifact ? "var(--accent)" : "var(--text-secondary)"}">${escapeXml(edgeLabel)}</text>`);
       }
     });
 
@@ -1041,7 +1059,9 @@
     layout.steps.forEach((s) => {
       const meta = STEP_TYPES[s.type] || STEP_TYPES.task;
       let style;
-      if (s.type === "decision") {
+      if (s.type === "trigger") {
+        style = "ellipse;whiteSpace=wrap;html=1;fillColor=#f6ecfd;strokeColor=#af52de;";
+      } else if (s.type === "decision") {
         style = "rhombus;whiteSpace=wrap;html=1;fillColor=#fff4e5;strokeColor=#ff9500;";
       } else if (s.type === "start" || s.type === "end") {
         style = "terminator;whiteSpace=wrap;html=1;fillColor=" + (s.type === "start" ? "#e8f8ec" : "#ffece8") + ";strokeColor=" + (s.type === "start" ? "#34c759" : "#ff3b30") + ";";
@@ -1059,8 +1079,9 @@
       const style = c.isBackEdge
         ? "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ff9500;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;"
         : "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8e8e93;";
+      const value = c.label || (ui.showArtifacts && c.artifact ? c.artifact : "");
       cells.push(
-        `<mxCell id="${c.id}" value="${escapeXml(c.label || "")}" style="${style}" edge="1" parent="1" source="${c.from}" target="${c.to}">` +
+        `<mxCell id="${c.id}" value="${escapeXml(value)}" style="${style}" edge="1" parent="1" source="${c.from}" target="${c.to}">` +
           `<mxGeometry relative="1" as="geometry" />` +
         `</mxCell>`
       );
@@ -1085,10 +1106,11 @@
      ===================================================================== */
 
   const AGENT_FORMAT_ID = "sipoc-swimlane-studio/agent-import";
-  const AGENT_TYPES = ["start", "task", "decision", "end"];
+  const AGENT_TYPES = ["trigger", "start", "task", "decision", "end"];
 
   // Häufige Abweichungen, die verstanden, aber zurückgemeldet werden.
   const AGENT_TYPE_ALIASES = {
+    ausloeser: "trigger", "auslöser": "trigger", ereignis: "trigger", event: "trigger", signal: "trigger",
     beginn: "start", anfang: "start", startpunkt: "start",
     aufgabe: "task", schritt: "task", taetigkeit: "task", tätigkeit: "task", prozessschritt: "task", activity: "task", process: "task",
     entscheidung: "decision", verzweigung: "decision", pruefung: "decision", prüfung: "decision", gateway: "decision",
@@ -1130,7 +1152,12 @@
     "  - name         Pflicht, die Tätigkeit als Verb-Formulierung (z. B. „Rechnung sachlich prüfen“).",
     "                 Bei type „decision“ formuliere eine Ja/Nein-Frage (z. B. „Betrag über 5.000 €?“).",
     "  - lane         Pflicht, muss ZEICHENGENAU einem der oben definierten lanes[].name entsprechen.",
-    '  - type         Pflicht, genau einer dieser vier kleingeschriebenen Werte: "start", "task", "decision", "end".',
+    '  - type         Pflicht, genau einer dieser fünf kleingeschriebenen Werte:',
+    '                 "trigger"  = auslösendes Ereignis (Zeitpunkt, Eingang, Signal), das den Prozess anstößt,',
+    '                 "start"    = erster aktiv ausgeführter Schritt,',
+    '                 "task"     = Arbeitsschritt,',
+    '                 "decision" = Verzweigung mit Ja/Nein-Frage,',
+    '                 "end"      = Abschluss eines Ablaufwegs.',
     "  - supplier     Wer den Input dieses Schritts liefert (Rolle, System oder Partner).",
     "  - input        Was in den Schritt hineingeht (Beleg, Datensatz, Information).",
     "  - output       Was der Schritt erzeugt.",
@@ -1148,7 +1175,9 @@
     '  - label  Bei Verzweigungen Pflicht (z. B. "Ja", "Nein", "über 5.000 €"), sonst weglassen.',
     "",
     "## Inhaltliche Regeln",
-    '- Genau ein Schritt hat type "start", mindestens ein Schritt hat type "end".',
+    '- Der Ablauf beginnt mit genau einem Schritt vom type "trigger" oder "start"; mindestens ein Schritt hat type "end".',
+    '- Nutze "trigger" für den auslösenden Umstand (z. B. "Rechnung geht ein", "Monatsletzter erreicht"),',
+    '  wenn der Prozess durch ein Ereignis angestoßen wird und nicht durch eine eigene Tätigkeit.',
     '- Jeder Schritt mit type "decision" hat mindestens zwei ausgehende connections, jede mit einem label.',
     '- Jeder Schritt außer dem "start"-Schritt ist über mindestens eine Verbindung erreichbar.',
     "- Rückschleifen (Nacharbeit, erneute Prüfung) sind ausdrücklich erlaubt und erwünscht, wo sie fachlich vorkommen.",
@@ -1596,14 +1625,14 @@
        erreichbar …) irreführend und würden die eigentliche Ursache zudecken. */
     if (!errors.length && stepByKey.size) {
       const steps = Array.from(stepByKey.values());
-      const starts = steps.filter((s) => s.type === "start");
+      const starts = steps.filter((s) => s.type === "start" || s.type === "trigger");
       if (starts.length === 0) {
-        notes.push(issue("steps", 'Kein Schritt hat type "start".',
-          'Markiere den auslösenden Schritt mit "type": "start".'));
+        notes.push(issue("steps", 'Kein Schritt hat type "trigger" oder "start".',
+          'Kennzeichne den Einstieg: "trigger" für ein auslösendes Ereignis, "start" für den ersten aktiven Schritt.'));
       } else if (starts.length > 1) {
-        notes.push(issue("steps", "Es gibt " + starts.length + ' Schritte mit type "start" (' +
-          starts.map((s) => s.key).join(", ") + ").",
-          "Ein Prozess hat genau einen Startpunkt; setze die übrigen auf \"task\"."));
+        notes.push(issue("steps", "Es gibt " + starts.length + " Einstiegspunkte (" +
+          starts.map((s) => s.key + ": " + s.type).join(", ") + ").",
+          "Ein Prozess hat genau einen Einstieg; setze die übrigen auf \"task\"."));
       }
       if (!steps.some((s) => s.type === "end")) {
         notes.push(issue("steps", 'Kein Schritt hat type "end".',
@@ -2013,12 +2042,12 @@
       submitLabel: lane ? "Speichern" : "Anlegen",
       onSubmit: (data) => {
         if (lane) updateLane(lane.id, data); else addLane(data);
-        renderLanes(); renderStepFilter(); renderSteps(); renderDiagramIfActive();
+        renderLanes(); renderStepFilter(); renderStepTable(); renderDiagramIfActive();
       },
       onDelete: lane ? () => {
         if (!confirm("Akteur „" + lane.name + "“ wirklich löschen?")) return false;
         const ok = deleteLane(lane.id);
-        if (ok) { renderLanes(); renderStepFilter(); renderSteps(); renderDiagramIfActive(); }
+        if (ok) { renderLanes(); renderStepFilter(); renderStepTable(); renderDiagramIfActive(); }
         return ok;
       } : null,
     });
@@ -2040,75 +2069,8 @@
     sel.value = p.lanes.some((l) => l.id === current) ? current : "";
   }
 
-  // Zwei Sichten auf dieselben Daten: die pflegbare Liste und die
-  // SIPOC-Übersicht, die den Fluss der Artefakte zeigt.
-  function renderSipocView() {
-    const list = document.getElementById("stepList");
-    const board = document.getElementById("sipocBoard");
-    const boardMode = ui.sipocView === "board";
-    document.querySelectorAll(".segmented-option").forEach((b) =>
-      b.classList.toggle("active", b.dataset.view === ui.sipocView));
-    if (list) list.classList.toggle("hidden", boardMode);
-    if (board) board.classList.toggle("hidden", !boardMode);
-    const filter = document.getElementById("stepFilterLane");
-    if (filter) filter.classList.toggle("hidden", boardMode);
-    const chainsBtn = document.getElementById("toggleChainsBtn");
-    if (chainsBtn) {
-      chainsBtn.classList.toggle("hidden", !boardMode);
-      chainsBtn.classList.toggle("btn-primary", ui.showChains);
-      chainsBtn.classList.toggle("btn-ghost", !ui.showChains);
-      chainsBtn.textContent = ui.showChains ? "Ketten ausblenden" : "Ketten einblenden";
-    }
-    if (boardMode) renderSipocBoard(); else renderSteps();
-  }
-
-  function renderSteps() {
-    const p = getProject();
-    const list = document.getElementById("stepList");
-    const filter = document.getElementById("stepFilterLane").value;
-    let steps = p.steps.slice();
-    if (filter) steps = steps.filter((s) => s.lane === filter);
-
-    if (!p.steps.length) {
-      list.innerHTML = `<div class="list-row"><div class="list-row-main"><div class="list-row-sub">Noch keine Prozessschritte erfasst. Lege zuerst Akteure an, dann Schritte mit Supplier, Input, Process, Output und Customer.</div></div></div>`;
-      return;
-    }
-    if (!steps.length) {
-      list.innerHTML = `<div class="list-row"><div class="list-row-main"><div class="list-row-sub">Kein Schritt für diesen Akteur.</div></div></div>`;
-      return;
-    }
-
-    list.innerHTML = steps.map((s, i) => {
-      const lane = getLane(s.lane);
-      const meta = STEP_TYPES[s.type] || STEP_TYPES.task;
-      const sipoc = [
-        s.supplier ? `<strong>Supplier:</strong> ${escapeHtml(s.supplier)}` : "",
-        s.input ? `<strong>Input:</strong> ${escapeHtml(s.input)}` : "",
-        s.output ? `<strong>Output:</strong> ${escapeHtml(s.output)}` : "",
-        s.customer ? `<strong>Customer:</strong> ${escapeHtml(s.customer)}` : "",
-      ].filter(Boolean).join(" · ");
-      return `<div class="list-row" data-step-id="${s.id}">
-        <span class="list-row-order">${i + 1}</span>
-        <div class="list-row-main">
-          <div class="list-row-title-line">
-            <span class="list-row-title">${escapeHtml(s.name)}</span>
-            <span class="badge"><span class="badge-dot" style="background:${meta.color}"></span>${meta.label}</span>
-            ${lane ? `<span class="badge"><span class="badge-dot" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</span>` : `<span class="badge">Ohne Akteur</span>`}
-          </div>
-          ${sipoc ? `<div class="list-row-sub">${sipoc}</div>` : ""}
-        </div>
-      </div>`;
-    }).join("");
-
-    list.querySelectorAll(".list-row[data-step-id]").forEach((row) => {
-      row.addEventListener("click", () => openStepForm(getStep(row.dataset.stepId)));
-    });
-  }
-
-  /* ------------------------------------------------ SIPOC-Übersicht (Board) */
-
-  // Reihenfolge der Zeilen: entlang des Ablaufs, damit die Kette von oben nach
-  // unten liest. Grundlage ist dieselbe Tiefenberechnung wie im Diagramm.
+  // Reihenfolge der Zeilen: entlang des Ablaufs, damit die Tabelle sich liest
+  // wie der Prozess. Grundlage ist dieselbe Tiefenberechnung wie im Diagramm.
   function stepsInFlowOrder(project) {
     if (!project.steps.length) return [];
     const layout = computeLayout(project);
@@ -2121,163 +2083,75 @@
     });
   }
 
-  function renderSipocBoard() {
+  // Die SIPOC-Sicht ist bewusst eine reine Tabelle: Hier werden Schritte
+  // angelegt und gepflegt. Wie sie zusammenhängen, zeigen die Prozess-Sichten
+  // (Swimlane-Diagramm und Prozesskette) — nicht diese Ansicht.
+  function renderStepTable() {
     const p = getProject();
-    const board = document.getElementById("sipocBoard");
-    if (!board) return;
+    const host = document.getElementById("stepTable");
+    if (!host) return;
+    const filter = document.getElementById("stepFilterLane").value;
+
     if (!p.steps.length) {
-      board.innerHTML = `<div class="agent-placeholder">Noch keine Prozessschritte — die Übersicht entsteht, sobald Schritte erfasst sind.</div>`;
+      host.innerHTML = `<div class="table-empty">Noch keine Prozessschritte erfasst. Lege zuerst Akteure an, dann Schritte mit Supplier, Input, Process, Output und Customer.</div>`;
       return;
     }
 
-    const ordered = stepsInFlowOrder(p);
+    let rows = stepsInFlowOrder(p);
+    if (filter) rows = rows.filter((s) => s.lane === filter);
+    if (!rows.length) {
+      host.innerHTML = `<div class="table-empty">Kein Schritt für diesen Akteur.</div>`;
+      return;
+    }
+
     const byId = new Map(p.steps.map((s) => [s.id, s]));
-    const cell = (value, extra) => value
-      ? `<div class="sipoc-cell ${extra || ""}">${escapeHtml(value)}</div>`
-      : `<div class="sipoc-cell sipoc-cell-empty ${extra || ""}">—</div>`;
+    const text = (v) => (v ? escapeHtml(v) : '<span class="cell-empty">—</span>');
 
-    const rows = ordered.map((s, i) => {
-      const lane = getLane(s.lane);
-      const meta = STEP_TYPES[s.type] || STEP_TYPES.task;
-      const sources = (s.inputFrom || []).map((id) => byId.get(id)).filter(Boolean);
-      const chips = sources.length
-        ? `<div class="sipoc-chips">${sources.map((q) =>
-            `<button type="button" class="sipoc-chip" data-jump="${escapeHtml(q.id)}" title="${escapeHtml(q.output || q.name)}">
-               ↰ ${escapeHtml(q.name)}
-             </button>`).join("")}</div>`
-        : "";
-      const targets = p.steps.filter((t) => (t.inputFrom || []).indexOf(s.id) !== -1);
-      const outMark = targets.length
-        ? `<div class="sipoc-outmark">speist ${targets.length} Schritt${targets.length === 1 ? "" : "e"}</div>`
-        : "";
-      return `<div class="sipoc-row" data-step-id="${escapeHtml(s.id)}">
-        <div class="sipoc-index">${i + 1}</div>
-        ${cell(s.supplier, "sipoc-side")}
-        <div class="sipoc-cell sipoc-input" data-role="input">
-          ${s.input ? escapeHtml(s.input) : '<span class="sipoc-empty-text">—</span>'}
-          ${chips}
-        </div>
-        <div class="sipoc-cell sipoc-process" style="--type-color:${meta.color}">
-          <div class="sipoc-process-name">${escapeHtml(s.name)}</div>
-          <div class="sipoc-process-meta">
-            <span class="badge"><span class="badge-dot" style="background:${meta.color}"></span>${meta.label}</span>
-            ${lane ? `<span class="badge"><span class="badge-dot" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</span>` : ""}
-          </div>
-        </div>
-        <div class="sipoc-cell sipoc-output" data-role="output">
-          ${s.output ? escapeHtml(s.output) : '<span class="sipoc-empty-text">—</span>'}
-          ${outMark}
-        </div>
-        ${cell(s.customer, "sipoc-side")}
-      </div>`;
-    }).join("");
+    host.innerHTML = `<table class="data-table">
+      <thead>
+        <tr>
+          <th class="col-num">#</th>
+          <th class="col-type">Typ</th>
+          <th class="col-lane">Akteur</th>
+          <th>Supplier</th>
+          <th>Input</th>
+          <th class="col-process">Process</th>
+          <th>Output</th>
+          <th>Customer</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((s, i) => {
+          const lane = getLane(s.lane);
+          const meta = STEP_TYPES[s.type] || STEP_TYPES.task;
+          const sources = (s.inputFrom || []).map((id) => byId.get(id)).filter(Boolean);
+          return `<tr data-step-id="${escapeHtml(s.id)}">
+            <td class="col-num">${i + 1}</td>
+            <td class="col-type"><span class="badge"><span class="badge-dot" style="background:${meta.color}"></span>${meta.label}</span></td>
+            <td class="col-lane">${lane
+              ? `<span class="lane-tag"><span class="badge-dot" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</span>`
+              : '<span class="cell-empty">ohne Akteur</span>'}</td>
+            <td>${text(s.supplier)}</td>
+            <td>${text(s.input)}${sources.length
+              ? `<div class="cell-note cell-source">aus: ${sources.map((q) => escapeHtml(q.name)).join(", ")}</div>` : ""}</td>
+            <td class="col-process">
+              <span class="cell-strong">${escapeHtml(s.name)}</span>
+              ${s.description ? `<div class="cell-note">${escapeHtml(s.description)}</div>` : ""}
+            </td>
+            <td>${text(s.output)}</td>
+            <td>${text(s.customer)}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>`;
 
-    board.innerHTML = `
-      <div class="sipoc-grid${ui.showChains ? " sipoc-grid-show-links" : ""}">
-        <div class="sipoc-header">
-          <div class="sipoc-index"></div>
-          <div class="sipoc-head"><span>S</span>upplier</div>
-          <div class="sipoc-head"><span>I</span>nput</div>
-          <div class="sipoc-head"><span>P</span>rocess</div>
-          <div class="sipoc-head"><span>O</span>utput</div>
-          <div class="sipoc-head"><span>C</span>ustomer</div>
-        </div>
-        ${rows}
-        <svg class="sipoc-links" aria-hidden="true"></svg>
-      </div>`;
-
-    board.querySelectorAll(".sipoc-row").forEach((row) => {
-      row.addEventListener("click", (e) => {
-        if (e.target.closest(".sipoc-chip")) return;
+    host.querySelectorAll("tr[data-step-id]").forEach((row) => {
+      row.addEventListener("click", () => {
         const step = getStep(row.dataset.stepId);
         if (step) openStepForm(step);
       });
-      row.addEventListener("mouseenter", () => highlightChain(row.dataset.stepId));
-      row.addEventListener("mouseleave", () => highlightChain(null));
-    });
-    board.querySelectorAll(".sipoc-chip").forEach((chip) => {
-      chip.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const target = board.querySelector(`.sipoc-row[data-step-id="${chip.dataset.jump}"]`);
-        if (target) {
-          target.scrollIntoView({ block: "center", behavior: "smooth" });
-          target.classList.add("sipoc-row-flash");
-          setTimeout(() => target.classList.remove("sipoc-row-flash"), 1200);
-        }
-      });
-    });
-
-    drawSipocLinks();
-  }
-
-  // Zeichnet die Artefaktkette: vom Output des Quellschritts zum Input des
-  // Zielschritts. Die Punkte werden aus dem gerenderten Layout gelesen, damit
-  // Kurven und Karten auch nach Textumbrüchen zusammenpassen.
-  function drawSipocLinks() {
-    const grid = document.querySelector("#sipocBoard .sipoc-grid");
-    const svg = grid && grid.querySelector(".sipoc-links");
-    if (!grid || !svg) return;
-    const p = getProject();
-    const gridRect = grid.getBoundingClientRect();
-    svg.setAttribute("width", grid.scrollWidth);
-    svg.setAttribute("height", grid.scrollHeight);
-    svg.setAttribute("viewBox", `0 0 ${grid.scrollWidth} ${grid.scrollHeight}`);
-
-    const anchor = (stepId, role, side) => {
-      const row = grid.querySelector(`.sipoc-row[data-step-id="${stepId}"]`);
-      if (!row) return null;
-      const c = row.querySelector(`[data-role="${role}"]`);
-      if (!c) return null;
-      const r = c.getBoundingClientRect();
-      return {
-        x: (side === "left" ? r.left : r.right) - gridRect.left,
-        y: r.top - gridRect.top + r.height / 2,
-      };
-    };
-
-    const paths = [];
-    p.steps.forEach((target) => {
-      (target.inputFrom || []).forEach((sourceId) => {
-        const from = anchor(sourceId, "output", "right");
-        const to = anchor(target.id, "input", "left");
-        if (!from || !to) return;
-        // Außen herum: rechts aus dem Output heraus, links in den Input hinein.
-        const bulge = 26 + Math.min(60, Math.abs(to.y - from.y) / 6);
-        const d = `M ${from.x} ${from.y} C ${from.x + bulge} ${from.y}, ${to.x - bulge} ${to.y}, ${to.x} ${to.y}`;
-        paths.push(
-          `<path d="${d}" class="sipoc-link" data-from="${escapeHtml(sourceId)}" data-to="${escapeHtml(target.id)}" />`
-        );
-      });
-    });
-
-    svg.innerHTML = `<defs>
-        <marker id="sipocArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 Z" fill="currentColor" />
-        </marker>
-      </defs>` + paths.join("");
-  }
-
-  function highlightChain(stepId) {
-    const grid = document.querySelector("#sipocBoard .sipoc-grid");
-    if (!grid) return;
-    grid.querySelectorAll(".sipoc-link").forEach((path) => {
-      const active = stepId && (path.dataset.from === stepId || path.dataset.to === stepId);
-      path.classList.toggle("sipoc-link-active", !!active);
-    });
-    grid.querySelectorAll(".sipoc-row").forEach((row) => {
-      row.classList.remove("sipoc-row-linked");
-    });
-    if (!stepId) return;
-    const step = getStep(stepId);
-    if (!step) return;
-    const related = new Set(step.inputFrom || []);
-    getProject().steps.forEach((s) => { if ((s.inputFrom || []).indexOf(stepId) !== -1) related.add(s.id); });
-    related.forEach((id) => {
-      const row = grid.querySelector(`.sipoc-row[data-step-id="${id}"]`);
-      if (row) row.classList.add("sipoc-row-linked");
     });
   }
-
   function openStepForm(step) {
     const p = getProject();
     if (!p.lanes.length) {
@@ -2305,12 +2179,12 @@
           document.querySelectorAll('#panelForm input[name="inputFrom"]:checked')
         ).map((el) => el.value);
         if (step) updateStep(step.id, data); else addStep(data);
-        renderSipocView(); renderConnections(); renderDiagramIfActive();
+        renderStepTable(); renderConnections(); renderDiagramIfActive();
       },
       onDelete: step ? () => {
         if (!confirm("Prozessschritt „" + step.name + "“ wirklich löschen?")) return false;
         const ok = deleteStep(step.id);
-        if (ok) { renderSipocView(); renderConnections(); renderDiagramIfActive(); }
+        if (ok) { renderStepTable(); renderConnections(); renderDiagramIfActive(); }
         return ok;
       } : null,
     });
@@ -2682,6 +2556,12 @@
 
   function renderDiagram() {
     const p = getProject();
+    const artifactsBtn = document.getElementById("toggleArtifactsBtn");
+    if (artifactsBtn) {
+      artifactsBtn.classList.toggle("btn-primary", ui.showArtifacts);
+      artifactsBtn.classList.toggle("btn-ghost", !ui.showArtifacts);
+      artifactsBtn.textContent = ui.showArtifacts ? "Artefakte ausblenden" : "Artefakte anzeigen";
+    }
     const wrapper = document.getElementById("diagramCanvasWrapper");
     const empty = document.getElementById("diagramEmpty");
     if (!p.steps.length) {
@@ -2714,7 +2594,7 @@
     ui.section = section;
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.section === section));
     document.querySelectorAll(".section").forEach((s) => s.classList.toggle("active", s.id === "section-" + section));
-    if (section === "sipoc") { renderStepFilter(); renderSipocView(); }
+    if (section === "sipoc") { renderStepFilter(); renderStepTable(); }
     if (section === "lanes") renderLanes();
     if (section === "connections") renderConnections();
     if (section === "chain") { renderProcessLinks(); renderChainMap(); }
@@ -2739,21 +2619,7 @@
     on("newStepBtn", "click", () => openStepForm(null));
     on("newConnectionBtn", "click", () => openConnectionForm(null));
 
-    on("stepFilterLane", "change", renderSteps);
-
-    document.querySelectorAll(".segmented-option").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        ui.sipocView = btn.dataset.view;
-        localStorage.setItem("sipocSwimlaneStudio.sipocView", ui.sipocView);
-        renderSipocView();
-      });
-    });
-
-    on("toggleChainsBtn", "click", () => {
-      ui.showChains = !ui.showChains;
-      localStorage.setItem("sipocSwimlaneStudio.showChains", ui.showChains ? "1" : "0");
-      renderSipocView();
-    });
+    on("stepFilterLane", "change", renderStepTable);
 
     on("newProcessLinkBtn", "click", () => openProcessLinkForm(null));
 
@@ -2915,7 +2781,8 @@
       agentResult = null;
       renderAgentResult();
     });
-    on("versionReloadBtn", "click", () => location.reload());
+    on("versionReloadBtn", "click", reloadFresh);
+    on("updateReloadBtn", "click", reloadFresh);
 
     on("themeToggleBtn", "click", () => {
       const order = ["auto", "light", "dark"];
@@ -2923,6 +2790,15 @@
       localStorage.setItem("sipocSwimlaneStudio.theme", ui.theme);
       applyTheme();
       showToast("Darstellung: " + ({ auto: "System", light: "Hell", dark: "Dunkel" }[ui.theme]));
+    });
+
+    on("toggleArtifactsBtn", "click", () => {
+      ui.showArtifacts = !ui.showArtifacts;
+      localStorage.setItem("sipocSwimlaneStudio.showArtifacts", ui.showArtifacts ? "1" : "0");
+      renderDiagram();
+      showToast(ui.showArtifacts
+        ? "Artefakte werden an den Verbindungen angezeigt."
+        : "Artefakte ausgeblendet.");
     });
 
     on("zoomInBtn", "click", () => { ui.zoom = Math.min(2.5, ui.zoom + 0.1); applyZoom(); });
@@ -2954,7 +2830,6 @@
 
     window.addEventListener("resize", debounce(() => {
       if (ui.section === "diagram") fitZoom();
-      if (ui.section === "sipoc" && ui.sipocView === "board") drawSipocLinks();
     }, 200));
   }
 
@@ -2980,6 +2855,33 @@
     if (warning) warning.classList.remove("hidden");
   }
 
+  // Auch die Einstiegsseite selbst wird vom Hosting mit einer Verfallszeit
+  // ausgeliefert. Wer die Seite offen hat oder kurz zuvor geladen hat, sieht
+  // sonst beliebig lange einen alten Stand — ohne es zu merken, weil Seite und
+  // Programmdatei dann gemeinsam veraltet und damit zueinander passend sind.
+  // Deshalb wird die aktuelle Fassung direkt beim Anbieter erfragt.
+  async function checkForUpdate() {
+    if (location.protocol === "file:") return; // gebündelte Datei aktualisiert sich nicht selbst
+    try {
+      const res = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || !data.version || data.version === APP_VERSION) return;
+      const banner = document.getElementById("updateBanner");
+      const label = document.getElementById("updateVersion");
+      if (label) label.textContent = data.version;
+      if (banner) banner.classList.remove("hidden");
+      console.warn("[SIPOC Swimlane Studio] Neuere Fassung verfügbar: " + data.version + " (geladen: " + APP_VERSION + ")");
+    } catch (e) { /* offline oder ohne version.json — dann bleibt es still */ }
+  }
+
+  // Erzwingt das Neuladen unter einer Adresse, die nicht im Zwischenspeicher
+  // liegt; ein einfaches reload() würde erneut die alte Seite liefern.
+  function reloadFresh() {
+    const base = location.origin + location.pathname;
+    location.replace(base + "?aktualisiert=" + Date.now());
+  }
+
   /* -------------------------------------------------------------- Init */
 
   function init() {
@@ -2992,6 +2894,11 @@
     wireEvents();
     renderAll();
     tryRestoreFileHandle();
+    checkForUpdate();
+    // Lange offene Tabs bekommen eine Aktualisierung sonst nie mit.
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) checkForUpdate();
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

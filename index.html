@@ -7,12 +7,18 @@
 <meta name="description" content="Leichtgewichtige Standalone-Web-App zum Erfassen von SIPOC-Prozessen und zur automatischen Darstellung als Swimlane-Diagramm mit draw.io-Export." />
 <!-- Version steuert das Cache-Busting der Assets und wird von app.js gegengeprüft.
      Bei jeder Änderung an styles.css oder app.js mit erhöhen. -->
-<meta name="app-version" content="1.4.0" />
+<meta name="app-version" content="1.5.0" />
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>" />
-<link rel="stylesheet" href="styles.css?v=1.4.0" />
+<link rel="stylesheet" href="styles.css?v=1.5.0" />
 </head>
 <body>
 <div id="app">
+
+  <div id="updateBanner" class="version-warning version-update hidden">
+    <span>Es liegt eine neuere Fassung dieser App vor (<span id="updateVersion">—</span>). Der Browser zeigt gerade eine ältere aus dem Zwischenspeicher.</span>
+    <button id="updateReloadBtn" class="btn btn-small btn-primary" type="button">Jetzt aktualisieren</button>
+  </div>
 
   <div id="versionWarning" class="version-warning hidden">
     <span>Der Browser hat eine veraltete Programmdatei zwischengespeichert. Bitte die Seite neu laden (Strg+F5 bzw. Cmd+Shift+R), damit alle Funktionen arbeiten.</span>
@@ -114,24 +120,18 @@
 
     <main class="content">
 
-      <section id="section-sipoc" class="section">
+      <section id="section-sipoc" class="section section-wide">
         <div class="section-header">
           <div>
             <h1>SIPOC-Tabelle</h1>
-            <p class="section-subtitle">Supplier · Input · Process · Output · Customer — je Prozessschritt.</p>
+            <p class="section-subtitle">Supplier · Input · Process · Output · Customer — je Prozessschritt. Wie die Schritte zusammenhängen, zeigen Swimlane-Diagramm und Prozesskette.</p>
           </div>
           <div class="section-actions">
-            <div class="segmented" role="tablist">
-              <button class="segmented-option" data-view="list" type="button" role="tab">Liste</button>
-              <button class="segmented-option" data-view="board" type="button" role="tab">Übersicht</button>
-            </div>
-            <button id="toggleChainsBtn" class="btn btn-ghost hidden" type="button">Ketten einblenden</button>
             <select id="stepFilterLane" class="filter-select" title="Nach Akteur filtern"></select>
             <button id="newStepBtn" class="btn btn-primary" type="button">＋ Neuer Schritt</button>
           </div>
         </div>
-        <div id="stepList" class="list-group"></div>
-        <div id="sipocBoard" class="sipoc-board hidden"></div>
+        <div id="stepTable" class="table-card"></div>
       </section>
 
       <section id="section-chain" class="section">
@@ -240,6 +240,7 @@
               <button id="zoomInBtn" class="btn btn-icon" type="button" title="Vergrößern">＋</button>
               <button id="zoomResetBtn" class="btn btn-ghost" type="button" title="Einpassen">Einpassen</button>
             </div>
+            <button id="toggleArtifactsBtn" class="btn btn-ghost" type="button">Artefakte anzeigen</button>
             <button id="copyXmlBtn" class="btn btn-ghost" type="button">XML kopieren</button>
             <button id="exportDrawioBtn" class="btn btn-primary" type="button">Als draw.io exportieren</button>
           </div>
@@ -268,6 +269,6 @@
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=1.4.0"></script>
+<script src="app.js?v=1.5.0"></script>
 </body>
 </html>

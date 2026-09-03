@@ -7,7 +7,7 @@ Arbeitspaketen gegliedert, in denen die Anwendung entstanden ist, und bildet
 die Gegenprobe zu deren Umsetzung: Ein Arbeitspaket gilt erst als vollständig,
 wenn seine Vorgänge hier abgedeckt sind.
 
-**Stand der Prüfung (03.09.2026):** 81 der 86 Vorgänge sind über
+**Stand der Prüfung (03.09.2026):** 85 der 89 Vorgänge sind über
 [`tests/smoke.mjs`](../tests/smoke.mjs) automatisiert abgedeckt und bestehen
 (Playwright/Chromium, `npm test`) — überwiegend gegen die ausgelieferte
 `index.html` per `file://`; die Vorgänge rund um Auslieferung, Zwischenablage
@@ -15,13 +15,11 @@ und Agenten-Import zusätzlich über einen kurzlebigen lokalen HTTP-Server, weil
 sie das Nachladen von Dateien bzw. eine http-Herkunft voraussetzen wie im
 Hosting-Betrieb.
 
-Offen sind noch fünf Vorgänge, die sich in einer kopflosen Browser-Umgebung
+Offen sind noch vier Vorgänge, die sich in einer kopflosen Browser-Umgebung
 nicht sinnvoll automatisieren lassen: das Verhalten bei verweigerter
 Zwischenablage (5.8), der tatsächliche Import in draw.io bzw. Confluence (5.9)
-die beiden Wege über die File System Access API (6.2, 6.3), die einen
-echten Dateiauswahldialog des Betriebssystems erfordern, sowie der Sprung zur
-Quellzeile per Klick auf eine Herkunftsangabe (10.6), der ein weiches Scrollen
-auswertet. Sie sind als offener
+sowie die beiden Wege über die File System Access API (6.2, 6.3), die einen
+echten Dateiauswahldialog des Betriebssystems erfordern. Sie sind als offener
 Prüfvorgang markiert, nicht als fehlend.
 
 Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert geprüft (Umsetzung laut Code vorhanden)
@@ -123,6 +121,9 @@ Legende: ✅ automatisiert geprüft (`npm test`) · ◻︎ nicht automatisiert g
 | 8.3 | Heruntergeladene Datei per Doppelklick (`file://`) öffnen | App startet ohne Internetverbindung vollständig: Gestaltung greift, übernommene Daten sind vorhanden, Diagramm und draw.io-Export funktionieren, keine JavaScript-Fehler | ✅ |
 | 8.4 | Aus der heruntergeladenen Datei heraus erneut „App als Datei herunterladen“ | Erzeugt wieder eine vollständige, eigenständige Datei — auch ohne Nachladen von Dateien | ✅ |
 | 8.5 | Seitengerüst und Programmdatei stammen aus verschiedenen Ständen (veralteter Browser-Cache) | Hinweisleiste „veraltete Programmdatei … bitte neu laden“ erscheint, statt dass Schaltflächen stillschweigend wirkungslos bleiben | ✅ |
+| 8.7 | Die Einstiegsseite selbst liegt veraltet im Zwischenspeicher, Seite und Programmdatei passen zueinander | Die App erfragt beim Start und beim Zurückkehren auf den Tab die aktuelle Fassung und bietet das Neuladen an — über eine Adresse mit Zeitstempel, weil einfaches Neuladen erneut die alte Seite liefern würde | ✅ |
+| 8.8 | Stand ist aktuell | Es erscheint kein Aktualisierungshinweis | ✅ |
+| 8.9 | Versionsangaben in index.html, app.js, version.json und package.json | Alle Angaben stimmen überein; der Testlauf schlägt sonst fehl, bevor irgendetwas ausgeliefert wird | ✅ |
 | 8.6 | Ein erwartetes Bedienelement fehlt im Seitengerüst | Die übrige Anwendung bleibt vollständig bedienbar; es erscheint lediglich eine Warnung in der Browser-Konsole | ✅ |
 
 ## AP9 — Import vom Agent
@@ -147,25 +148,25 @@ Die Fälle zu 9.5 bis 9.9 sind als Sammlung in
 einer Agentenantwort, jeweils mit dem erwarteten Urteil und der Aussage, die in
 der Rückmeldung stehen muss.
 
-## AP10 — Artefaktkette und Prozesskette
+## AP10 — Schritt-Typen, Artefaktkette und Prozesskette
 
 | # | Vorgang | Erwartetes Ergebnis | Geprüft |
 |---|---|---|---|
 | 10.1 | App erstmals öffnen | Drei aufeinander aufbauende Beispielprozesse sind geladen und untereinander verkettet | ✅ |
-| 10.2 | Bei einem Schritt hinterlegen, aus wessen Output sich sein Input speist (Mehrfachauswahl) | Die Herkunft wird gespeichert und erscheint in der SIPOC-Übersicht an der Input-Karte; am Output steht, wie viele Schritte er speist | ✅ |
-| 10.3 | Zwischen „Liste“ und „Übersicht“ umschalten | Dieselben Daten erscheinen als pflegbare Liste bzw. als fünfspaltige SIPOC-Darstellung; die Wahl bleibt nach Neuladen erhalten | ✅ |
-| 10.4 | Ketten ein- und ausblenden | Im Ruhezustand sind die Verbindungskurven unsichtbar; über den Schalter erscheinen alle dauerhaft | ✅ |
-| 10.5 | Eine Zeile der Übersicht überfahren | Die zusammenhängende Kette wird hervorgehoben (Kurven und beteiligte Zeilen) | ✅ |
-| 10.6 | Auf eine Herkunftsangabe klicken | Die Ansicht springt zur Quellzeile und hebt sie kurz hervor | ◻︎ |
-| 10.7 | Schritt löschen, auf den sich andere Schritte beziehen | Die Herkunftsverweise darauf werden mitentfernt, es bleiben keine toten Verweise | ✅ |
-| 10.8 | Projekt duplizieren | Die Kopie hat eine eigenständige Artefaktkette; ihre Verweise zeigen auf die Schritte der Kopie, nicht auf das Original | ✅ |
-| 10.9 | Prozesskette öffnen | Landkarte mit allen Prozessen als Karten und den Übergaben als beschriftete Pfeile, darunter die Übergaben als Liste | ✅ |
-| 10.10 | Verkettung anlegen (liefernder Prozess, Artefakt, empfangender Prozess, optional die genauen Schritte) | Übergabe erscheint sofort in Liste und Landkarte | ✅ |
-| 10.11 | Prozess mit sich selbst verketten bzw. eine bestehende Verkettung erneut anlegen | Beides wird mit Hinweis verhindert | ✅ |
+| 10.2 | SIPOC-Sicht öffnen | Reine Tabelle mit den Spalten #, Typ, Akteur, Supplier, Input, Process, Output, Customer in Ablaufreihenfolge — ohne Verbindungskurven, Umschalter oder sonstige grafische Zutaten | ✅ |
+| 10.3 | Artefaktherkunft in der Tabelle ablesen | Steht als schlichte Textzeile („aus: …“) unter dem Input, nicht als Grafik | ✅ |
+| 10.4 | Bei einem Schritt hinterlegen, aus wessen Output sich sein Input speist (Mehrfachauswahl) | Auswahl über alle übrigen Schritte; die Herkunft wird gespeichert und erscheint in der Tabelle | ✅ |
+| 10.5 | Schritt vom Typ „Trigger“ anlegen | Trigger steht neben Start, Aufgabe, Entscheidung und Ende zur Auswahl und erscheint mit eigenem Badge in der Tabelle | ✅ |
+| 10.6 | Trigger im Diagramm und im draw.io-Export | Wird als eigene Form (Ellipse) gezeichnet und exportiert | ✅ |
+| 10.7 | Im Diagramm „Artefakte anzeigen“ | Verbindungen tragen zusätzlich das übergebene Artefakt, wo eine Herkunft hinterlegt ist; eigene Beschriftungen wie „Ja“/„Nein“ behalten Vorrang | ✅ |
+| 10.8 | Schritt löschen, auf den sich andere Schritte beziehen | Die Herkunftsverweise darauf werden mitentfernt, es bleiben keine toten Verweise | ✅ |
+| 10.9 | Projekt duplizieren | Die Kopie hat eine eigenständige Artefaktkette; ihre Verweise zeigen auf die Schritte der Kopie, nicht auf das Original | ✅ |
+| 10.10 | Prozesskette öffnen | Landkarte mit allen Prozessen als Karten und den Übergaben als beschriftete Pfeile, darunter die Übergaben als Liste | ✅ |
+| 10.11 | Verkettung anlegen; Selbstverkettung bzw. Duplikat versuchen | Übergabe erscheint sofort in Liste und Landkarte; Selbstverkettung und Duplikat werden mit Hinweis verhindert | ✅ |
 | 10.12 | Verkettung bearbeiten und löschen | Änderung bzw. Entfernung wirkt sofort auf Liste und Landkarte | ✅ |
 | 10.13 | Auf eine Prozesskarte in der Landkarte klicken | Der angeklickte Prozess wird zum aktiven Prozess in allen Ansichten | ✅ |
 | 10.14 | Prozess löschen, der Teil einer Kette ist | Seine Übergaben werden mitentfernt; die übrige Kette bleibt bestehen | ✅ |
-| 10.15 | Agentenantwort mit `inputFrom` importieren | Die gelieferte Artefaktkette landet in der SIPOC-Übersicht; unbekannte oder auf sich selbst verweisende Schlüssel werden beanstandet | ✅ |
+| 10.15 | Agentenantwort mit `inputFrom` und `trigger` importieren | Artefaktkette und Trigger werden übernommen; unbekannte oder auf sich selbst verweisende Schlüssel werden beanstandet | ✅ |
 
 ## Smoke-Test ausführen
 

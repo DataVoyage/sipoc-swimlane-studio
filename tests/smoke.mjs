@@ -41,6 +41,12 @@ async function openMenu() {
   await page.click("#moreMenuBtn");
   await page.waitForTimeout(120);
 }
+// Der Schrittname steht in der Process-Spalte; in der Input-Spalte kann er als
+// Herkunftsangabe erneut vorkommen. Deshalb gezielt auf die Process-Zelle zielen.
+function stepRow(target, name) {
+  return target.locator(`#stepTable tbody tr:has(.cell-strong:text-is("${name}"))`);
+}
+
 async function menuClick(id) {
   await openMenu();
   await page.click("#" + id);
@@ -52,7 +58,7 @@ await page.waitForTimeout(300);
 
 // --- AP1 Projektverwaltung -------------------------------------------------
 
-ok("1.1", (await page.locator("#stepList .list-row[data-step-id]").count()) === 13, "Beispielprojekt beim ersten Start");
+ok("1.1", (await page.locator("#stepTable tbody tr[data-step-id]").count()) === 13, "Beispielprojekt beim ersten Start");
 
 await page.click('.nav-item[data-section="lanes"]');
 await page.click("#newLaneBtn");
@@ -166,12 +172,13 @@ await addStep("Schritt Aufgabe", "task", { supplier: "S", input: "I", output: "O
 await addStep("Schritt Entscheidung", "decision");
 await addStep("Schritt Ende", "end");
 
-const badges = await page.locator("#stepList .list-row").allInnerTexts();
+const badges = await page.locator("#stepTable tbody tr").allInnerTexts();
 ok("3.1", badges.some((t) => t.includes("Schritt Start") && t.includes("Start")));
 ok("3.2", badges.some((t) => t.includes("Schritt Aufgabe") && t.includes("Aufgabe")));
 ok("3.3", badges.some((t) => t.includes("Schritt Entscheidung") && t.includes("Entscheidung")));
 ok("3.4", badges.some((t) => t.includes("Schritt Ende") && t.includes("Ende")));
-ok("3.6", badges.some((t) => t.includes("Supplier: S") && t.includes("Customer: C")));
+ok("3.6", badges.some((t) => t.includes("Schritt Aufgabe") && /\bS\b/.test(t) && /\bC\b/.test(t)),
+  "SIPOC-Werte stehen in eigenen Spalten");
 ok("3.7", badges.some((t) => t.includes("Schritt Start") && !t.includes("Supplier:")));
 
 await page.click("#newStepBtn");
@@ -182,7 +189,7 @@ await page.click("#panelClose");
 
 await page.selectOption("#stepFilterLane", { label: "Testrolle" });
 await page.waitForTimeout(100);
-ok("3.10", (await page.locator("#stepList .list-row[data-step-id]").count()) === 4, "Filter nach Akteur");
+ok("3.10", (await page.locator("#stepTable tbody tr[data-step-id]").count()) === 4, "Filter nach Akteur");
 await page.selectOption("#stepFilterLane", "");
 
 // --- AP4 Verbindungen ----------------------------------------------------
@@ -236,12 +243,12 @@ await page.waitForTimeout(80);
 ok("5.4", zoomBefore !== (await page.locator("#zoomLabel").textContent()), "Zoom-Buttons wirken");
 
 await page.click('.nav-item[data-section="sipoc"]');
-let stepRows = await page.locator("#stepList .list-row[data-step-id]").count();
+let stepRows = await page.locator("#stepTable tbody tr[data-step-id]").count();
 while (stepRows > 0) {
-  await page.locator("#stepList .list-row[data-step-id]").first().click();
+  await page.locator("#stepTable tbody tr[data-step-id]").first().click();
   await page.click("#panelDeleteBtn");
   await page.waitForTimeout(120);
-  stepRows = await page.locator("#stepList .list-row[data-step-id]").count();
+  stepRows = await page.locator("#stepTable tbody tr[data-step-id]").count();
 }
 await page.click('.nav-item[data-section="diagram"]');
 await page.waitForTimeout(150);
@@ -322,7 +329,7 @@ await menuClick("clearAllBtn");
 await page.waitForTimeout(250);
 const projectsAfterClear = await page.locator("#projectSelect option").count();
 ok("1.9a", projectsAfterClear === 1, "genau ein Projekt nach „Alle Daten löschen“");
-ok("1.9b", (await page.locator("#stepList .list-row[data-step-id]").count()) === 0, "keine Prozessschritte mehr vorhanden");
+ok("1.9b", (await page.locator("#stepTable tbody tr[data-step-id]").count()) === 0, "keine Prozessschritte mehr vorhanden");
 
 await page.click('.nav-item[data-section="lanes"]');
 ok("1.9c", (await page.locator("#laneList .list-row[data-lane-id]").count()) === 0, "keine Akteure mehr vorhanden");
@@ -349,6 +356,24 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const httpUrl = `http://127.0.0.1:${server.address().port}/index.html`;
+
+// 8.0 — Alle Versionsangaben müssen übereinstimmen. Weichen sie ab, liefert das
+// Hosting Dateien aus verschiedenen Ständen aus oder der Aktualisierungshinweis
+// erscheint dauerhaft bzw. nie.
+const indexSrc = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+const appSrc = fs.readFileSync(path.join(repoRoot, "app.js"), "utf8");
+const versions = {
+  meta: (indexSrc.match(/name="app-version" content="([^"]+)"/) || [])[1],
+  css: (indexSrc.match(/styles\.css\?v=([^"]+)"/) || [])[1],
+  js: (indexSrc.match(/app\.js\?v=([^"]+)"/) || [])[1],
+  konstante: (appSrc.match(/const APP_VERSION = "([^"]+)"/) || [])[1],
+  versionJson: JSON.parse(fs.readFileSync(path.join(repoRoot, "version.json"), "utf8")).version,
+  paket: JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version,
+};
+const alleGleich = Object.values(versions).every((v) => v && v === versions.meta);
+ok("8.0", alleGleich, alleGleich
+  ? "alle Versionsangaben stehen auf " + versions.meta
+  : "abweichend: " + JSON.stringify(versions));
 
 // 8.1 — App über HTTP als Standalone-Datei herunterladen
 const httpPage = await browser.newPage();
@@ -402,7 +427,7 @@ standalonePage.on("pageerror", (e) => standaloneErrors.push("PAGEERROR: " + e.me
 standalonePage.on("console", (m) => { if (m.type() === "error") standaloneErrors.push("CONSOLE: " + m.text()); });
 await standalonePage.goto("file://" + standalonePath);
 await standalonePage.waitForTimeout(500);
-ok("8.2a", (await standalonePage.locator("#stepList .list-row[data-step-id]").count()) === 13, "übernommene Daten sind vorhanden");
+ok("8.2a", (await standalonePage.locator("#stepTable tbody tr[data-step-id]").count()) === 13, "übernommene Daten sind vorhanden");
 const sidebarBg = await standalonePage.evaluate(() => getComputedStyle(document.querySelector(".sidebar")).backgroundColor);
 ok("8.2b", sidebarBg !== "rgba(0, 0, 0, 0)" && sidebarBg !== "", "eingebettete Gestaltung greift (" + sidebarBg + ")");
 ok("8.2c", (await standalonePage.locator("#versionWarning:not(.hidden)").count()) === 0, "keine Versionswarnung in der gebündelten Datei");
@@ -442,6 +467,32 @@ await conflictPage.goto(httpUrl);
 await conflictPage.waitForTimeout(400);
 ok("8.4", (await conflictPage.locator("#versionWarning:not(.hidden)").count()) === 1, "Warnung bei nicht zusammenpassenden Dateiständen");
 
+// 8.6 — veraltete Seite im Zwischenspeicher wird erkannt und zum Neuladen angeboten
+const staleContext = await browser.newContext();
+const stalePage = await staleContext.newPage();
+await stalePage.route("**/version.json*", (route) =>
+  route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ version: "99.0.0" }) })
+);
+await stalePage.goto(httpUrl);
+await stalePage.waitForTimeout(700);
+const bannerVisible = (await stalePage.locator("#updateBanner:not(.hidden)").count()) === 1;
+const announced = await stalePage.locator("#updateVersion").textContent();
+// Der Knopf muss unter einer Adresse neu laden, die nicht im Zwischenspeicher liegt.
+await stalePage.click("#updateReloadBtn");
+await stalePage.waitForTimeout(700);
+const freshUrl = stalePage.url();
+ok("8.6", bannerVisible && announced === "99.0.0" && /aktualisiert=\d+/.test(freshUrl),
+  `Hinweis auf Fassung ${announced}, Neuladen über ${freshUrl.split("?")[1] || "(ohne Parameter)"}`);
+await staleContext.close();
+
+// 8.7 — stimmt die Fassung überein, erscheint kein Hinweis
+const currentPage = await browser.newPage();
+await currentPage.goto(httpUrl);
+await currentPage.waitForTimeout(700);
+ok("8.7", (await currentPage.locator("#updateBanner:not(.hidden)").count()) === 0,
+  "kein Aktualisierungshinweis bei aktuellem Stand");
+await currentPage.close();
+
 // 8.5 — fehlendes Bedienelement legt die übrige App nicht lahm
 const robustPage = await browser.newPage();
 const indexSource = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
@@ -454,7 +505,7 @@ await robustPage.route(/\/index\.html(\?.*)?$/, (route) =>
 );
 await robustPage.goto(httpUrl);
 await robustPage.waitForTimeout(400);
-const robustSteps = await robustPage.locator("#stepList .list-row[data-step-id]").count();
+const robustSteps = await robustPage.locator("#stepTable tbody tr[data-step-id]").count();
 await robustPage.click("#themeToggleBtn");
 await robustPage.waitForTimeout(150);
 const robustTheme = await robustPage.evaluate(() => document.documentElement.getAttribute("data-theme"));
@@ -478,13 +529,13 @@ await extraPage.reload();
 await extraPage.waitForTimeout(400);
 
 // 3.9 — Schritt bearbeiten, inklusive Typwechsel
-await extraPage.locator("#stepList .list-row", { hasText: "Rechnung im Finanzsystem anlegen" }).click();
+await stepRow(extraPage, "Rechnung im Finanzsystem anlegen").click();
 await extraPage.waitForTimeout(150);
 await extraPage.fill("#f_name", "Rechnungsbeleg erfassen");
 await extraPage.click('label[for="f_type_decision"]');
 await extraPage.click("#panelForm button[type=submit]");
 await extraPage.waitForTimeout(250);
-const editedRow = await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).innerText();
+const editedRow = await stepRow(extraPage, "Rechnungsbeleg erfassen").innerText();
 ok("3.9", editedRow.includes("Entscheidung"), "Name und Typ übernommen");
 
 // 3.12 — Schritt mit bestehenden Verbindungen löschen entfernt auch diese
@@ -492,7 +543,7 @@ await extraPage.click('.nav-item[data-section="connections"]');
 await extraPage.waitForTimeout(200);
 const connBefore = await extraPage.locator("#connectionList .list-row[data-conn-id]").count();
 await extraPage.click('.nav-item[data-section="sipoc"]');
-await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).click();
+await stepRow(extraPage, "Rechnungsbeleg erfassen").click();
 await extraPage.waitForTimeout(150);
 await extraPage.click("#panelDeleteBtn");
 await extraPage.waitForTimeout(300);
@@ -500,7 +551,7 @@ await extraPage.click('.nav-item[data-section="connections"]');
 await extraPage.waitForTimeout(200);
 const connAfter = await extraPage.locator("#connectionList .list-row[data-conn-id]").count();
 ok("3.12", connAfter === connBefore - 3 &&
-  (await extraPage.locator("#stepList .list-row", { hasText: "Rechnungsbeleg erfassen" }).count()) === 0,
+  (await stepRow(extraPage, "Rechnungsbeleg erfassen").count()) === 0,
   `Schritt entfernt, Verbindungen ${connBefore} → ${connAfter}`);
 
 // 5.5 — „Einpassen“ nach Fenstergrößenänderung
@@ -599,7 +650,7 @@ await checkAgentInput(agentGoodExample);
 await agentPage.click("#importAgentBtn");
 await agentPage.waitForTimeout(400);
 const importedName = await agentPage.locator("#projectNameInput").inputValue();
-const importedSteps = await agentPage.locator("#stepList .list-row[data-step-id]").count();
+const importedSteps = await agentPage.locator("#stepTable tbody tr[data-step-id]").count();
 await agentPage.click('.nav-item[data-section="lanes"]');
 await agentPage.waitForTimeout(150);
 const importedLanes = await agentPage.locator("#laneList .list-row[data-lane-id]").count();
@@ -620,11 +671,9 @@ ok("9.6", agentXmlText.includes("<mxfile") && agentXmlText.includes("rhombus"),
 
 // 9.10 — die vom Agenten gelieferte Artefaktkette landet in der SIPOC-Übersicht
 await agentPage.click('.nav-item[data-section="sipoc"]');
-await agentPage.click('.segmented-option[data-view="board"]');
 await agentPage.waitForTimeout(400);
-ok("9.10", (await agentPage.locator(".sipoc-chip").count()) >= 2,
-  (await agentPage.locator(".sipoc-chip").count()) + " Herkunftsangaben aus der Agentenantwort übernommen");
-await agentPage.click('.segmented-option[data-view="list"]');
+ok("9.10", (await agentPage.locator("#stepTable .cell-source").count()) >= 2,
+  (await agentPage.locator("#stepTable .cell-source").count()) + " Herkunftsangaben aus der Agentenantwort übernommen");
 
 // 9.8 — Eingabefeld leeren setzt auch das Prüfergebnis zurück
 await agentPage.click('.nav-item[data-section="agent"]');
@@ -690,38 +739,23 @@ await chainPage.waitForTimeout(400);
 ok("10.1", (await chainPage.locator("#projectSelect option").count()) === 3,
   "Startbestand enthält drei verkettete Prozesse");
 
-// 10.2 — SIPOC-Übersicht mit Artefaktketten
-await chainPage.click('.segmented-option[data-view="board"]');
-await chainPage.waitForTimeout(400);
-const boardRows = await chainPage.locator(".sipoc-row").count();
-const chips = await chainPage.locator(".sipoc-chip").count();
-const links = await chainPage.locator(".sipoc-link").count();
-ok("10.2", boardRows === 13 && chips > 0 && links === chips,
-  `Übersicht: ${boardRows} Zeilen, ${chips} Herkunftsangaben, ${links} Ketten`);
+// 10.2 — SIPOC-Sicht ist eine reine Tabelle, ohne grafische Zutaten
+const tableCols = await chainPage.locator("#stepTable thead th").allTextContents();
+const tableRows = await chainPage.locator("#stepTable tbody tr[data-step-id]").count();
+const leftovers = await chainPage.locator(".sipoc-link, .sipoc-chip, .segmented-option, #toggleChainsBtn").count();
+ok("10.2", tableRows === 13 &&
+  tableCols.join("|") === "#|Typ|Akteur|Supplier|Input|Process|Output|Customer" &&
+  leftovers === 0,
+  `Tabelle mit ${tableRows} Zeilen und den Spalten ${tableCols.join(", ")}; keine Kurven oder Umschalter`);
 
-// 10.3 — Ketten sind erst auf Zuruf sichtbar, nicht dauerhaft
-const restingOpacity = await chainPage.evaluate(() =>
-  getComputedStyle(document.querySelector(".sipoc-link")).opacity);
-await chainPage.click("#toggleChainsBtn");
-await chainPage.waitForTimeout(300);
-const shownOpacity = await chainPage.evaluate(() =>
-  getComputedStyle(document.querySelector(".sipoc-link")).opacity);
-ok("10.3", Number(restingOpacity) === 0 && Number(shownOpacity) > 0,
-  `Ruhezustand ${restingOpacity}, eingeblendet ${shownOpacity}`);
-await chainPage.click("#toggleChainsBtn");
-await chainPage.waitForTimeout(200);
+// 10.3 — die Artefaktherkunft steht als Text in der Tabelle
+const sourceNotes = await chainPage.locator("#stepTable .cell-source").count();
+const firstNote = await chainPage.locator("#stepTable .cell-source").first().textContent();
+ok("10.3", sourceNotes > 0 && firstNote.trim().startsWith("aus:"),
+  `${sourceNotes} Herkunftsangaben, z. B. „${firstNote.trim()}“`);
 
-// 10.4 — Überfahren hebt die zusammenhängende Kette hervor
-await chainPage.locator(".sipoc-row").nth(10).hover();
-await chainPage.waitForTimeout(300);
-ok("10.4", (await chainPage.locator(".sipoc-link-active").count()) > 0 &&
-  (await chainPage.locator(".sipoc-row-linked").count()) > 0,
-  "Hervorhebung beim Überfahren einer Zeile");
-
-// 10.5 — Herkunft im Formular setzen und wieder entfernen
-await chainPage.click('.segmented-option[data-view="list"]');
-await chainPage.waitForTimeout(250);
-await chainPage.locator("#stepList .list-row", { hasText: "Rechnung erfassen und digitalisieren" }).click();
+// 10.4 — Herkunft im Formular setzen und wieder ändern
+await stepRow(chainPage, "Rechnung erfassen und digitalisieren").click();
 await chainPage.waitForTimeout(250);
 const sourceBoxes = await chainPage.locator('#panelForm input[name="inputFrom"]').count();
 const checkedBefore = await chainPage.locator('#panelForm input[name="inputFrom"]:checked').count();
@@ -729,42 +763,71 @@ await chainPage.locator('#panelForm input[name="inputFrom"]').first().uncheck();
 await chainPage.locator('#panelForm input[name="inputFrom"]').nth(2).check();
 await chainPage.click("#panelForm button[type=submit]");
 await chainPage.waitForTimeout(300);
-await chainPage.locator("#stepList .list-row", { hasText: "Rechnung erfassen und digitalisieren" }).click();
+await stepRow(chainPage, "Rechnung erfassen und digitalisieren").click();
 await chainPage.waitForTimeout(250);
-const checkedAfter = await chainPage.locator('#panelForm input[name="inputFrom"]:checked').count();
 const checkedIndex = await chainPage.evaluate(() => {
   const boxes = Array.from(document.querySelectorAll('#panelForm input[name="inputFrom"]'));
   return boxes.findIndex((b) => b.checked);
 });
 await chainPage.click("#panelClose");
-ok("10.5", sourceBoxes === 12 && checkedBefore === 1 && checkedAfter === 1 && checkedIndex === 2,
-  `Auswahl ${sourceBoxes} Schritte, Herkunft geändert (Index ${checkedIndex})`);
+ok("10.4", sourceBoxes === 12 && checkedBefore === 1 && checkedIndex === 2,
+  `Auswahl über ${sourceBoxes} Schritte, Herkunft geändert (Index ${checkedIndex})`);
 
-// 10.6 — Schritt löschen entfernt die Herkunftsverweise darauf
-await chainPage.click('.segmented-option[data-view="board"]');
+// 10.5 — Trigger als eigener Schritt-Typ
+await chainPage.click("#newStepBtn");
+await chainPage.waitForTimeout(250);
+const typeOptions = await chainPage.locator(".type-radio-label").allTextContents();
+await chainPage.fill("#f_name", "Rechnung geht im zentralen Postfach ein");
+await chainPage.click('label[for="f_type_trigger"]');
+await chainPage.fill("#f_output", "Eingegangene Rechnung");
+await chainPage.click("#panelForm button[type=submit]");
+await chainPage.waitForTimeout(400);
+const triggerRow = await stepRow(chainPage, "Rechnung geht im zentralen Postfach ein").innerText();
+ok("10.5", typeOptions.join(",") === "Trigger,Start,Aufgabe,Entscheidung,Ende" && triggerRow.includes("Trigger"),
+  "Trigger steht als Typ zur Verfügung und erscheint in der Tabelle");
+
+// 10.6 — Trigger im Diagramm und im draw.io-Export
+await chainPage.click('.nav-item[data-section="diagram"]');
+await chainPage.waitForTimeout(500);
+const [triggerXml] = await Promise.all([
+  chainPage.waitForEvent("download"),
+  chainPage.click("#exportDrawioBtn"),
+]);
+const triggerXmlText = fs.readFileSync(await triggerXml.path(), "utf8");
+ok("10.6", triggerXmlText.includes("ellipse;whiteSpace") && triggerXmlText.includes("Rechnung geht im zentralen Postfach ein"),
+  "Trigger wird als eigene Form exportiert");
+
+// 10.7 — Artefakte an den Verbindungen der Prozess-Sicht
+const labelsBefore = (await chainPage.locator("#diagramCanvasWrapper svg text").allTextContents()).length;
+await chainPage.click("#toggleArtifactsBtn");
+await chainPage.waitForTimeout(600);
+const labelsAfter = await chainPage.locator("#diagramCanvasWrapper svg text").allTextContents();
+ok("10.7", labelsAfter.length > labelsBefore &&
+  labelsAfter.some((l) => l.includes("Digitalisierte Rechnung") || l.includes("Rechnungsbeleg")),
+  `Artefakte eingeblendet: ${labelsBefore} → ${labelsAfter.length} Beschriftungen`);
+await chainPage.click("#toggleArtifactsBtn");
 await chainPage.waitForTimeout(300);
-const chipsBeforeDelete = await chainPage.locator(".sipoc-chip").count();
-await chainPage.click('.segmented-option[data-view="list"]');
-await chainPage.locator("#stepList .list-row", { hasText: "Rückfrage an Lieferanten klären" }).click();
+
+// 10.8 — Schritt löschen entfernt die Herkunftsverweise darauf
+await chainPage.click('.nav-item[data-section="sipoc"]');
+await chainPage.waitForTimeout(300);
+const notesBeforeDelete = await chainPage.locator("#stepTable .cell-source").count();
+await stepRow(chainPage, "Rückfrage an Lieferanten klären").click();
 await chainPage.waitForTimeout(200);
 await chainPage.click("#panelDeleteBtn");
 await chainPage.waitForTimeout(400);
-await chainPage.click('.segmented-option[data-view="board"]');
-await chainPage.waitForTimeout(300);
-const chipsAfterDelete = await chainPage.locator(".sipoc-chip").count();
-ok("10.6", chipsAfterDelete < chipsBeforeDelete,
-  `Herkunftsangaben ${chipsBeforeDelete} → ${chipsAfterDelete} nach dem Löschen eines Schritts`);
+const notesAfterDelete = await chainPage.locator("#stepTable .cell-source").count();
+ok("10.10", notesAfterDelete < notesBeforeDelete,
+  `Herkunftsangaben ${notesBeforeDelete} → ${notesAfterDelete} nach dem Löschen eines Schritts`);
 
-// 10.7 — Duplizieren führt zu einer eigenständigen Kette in der Kopie
+// 10.9 — Duplizieren führt zu einer eigenständigen Kette in der Kopie
 await chainPage.click("#moreMenuBtn");
 await chainPage.waitForTimeout(150);
 await chainPage.click("#duplicateProjectBtn");
 await chainPage.waitForTimeout(500);
-await chainPage.click('.segmented-option[data-view="board"]');
-await chainPage.waitForTimeout(400);
-const chipsInCopy = await chainPage.locator(".sipoc-chip").count();
-ok("10.7", chipsInCopy === chipsAfterDelete && chipsInCopy > 0,
-  `Kopie hat eigene Herkunftsverweise (${chipsInCopy})`);
+const notesInCopy = await chainPage.locator("#stepTable .cell-source").count();
+ok("10.9", notesInCopy === notesAfterDelete && notesInCopy > 0,
+  `Kopie hat eigene Herkunftsverweise (${notesInCopy})`);
 
 // 10.8 — Prozesskette: Landkarte und Übergabenliste
 await chainPage.click('.nav-item[data-section="chain"]');
@@ -772,7 +835,7 @@ await chainPage.waitForTimeout(500);
 const cards = await chainPage.locator(".chain-card").count();
 const edges = await chainPage.locator(".chain-edge").count();
 const linkRows = await chainPage.locator("#processLinkList .list-row[data-link-id]").count();
-ok("10.8", cards === 4 && edges === 2 && linkRows === 2,
+ok("10.10", cards === 4 && edges === 2 && linkRows === 2,
   `Landkarte: ${cards} Prozesse, ${edges} Übergaben, ${linkRows} Einträge`);
 
 // 10.9 — Verkettung anlegen, Selbstverkettung und Duplikat verhindern
@@ -783,13 +846,13 @@ await chainPage.selectOption("#f_fromProject", projectValues[0]);
 await chainPage.selectOption("#f_toProject", projectValues[0]);
 await chainPage.click("#panelForm button[type=submit]");
 await chainPage.waitForTimeout(250);
-ok("10.9a", (await chainPage.locator("#toast").textContent()).includes("nicht mit sich selbst"),
+ok("10.11a", (await chainPage.locator("#toast").textContent()).includes("nicht mit sich selbst"),
   "Selbstverkettung wird verhindert");
 await chainPage.selectOption("#f_toProject", projectValues[3]);
 await chainPage.fill("#f_artifact", "Geprüfte Vergabeunterlagen");
 await chainPage.click("#panelForm button[type=submit]");
 await chainPage.waitForTimeout(400);
-ok("10.9b", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 3 &&
+ok("10.11b", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 3 &&
   (await chainPage.locator(".chain-edge").count()) === 3,
   "neue Verkettung erscheint in Liste und Landkarte");
 
@@ -799,7 +862,7 @@ await chainPage.selectOption("#f_fromProject", projectValues[0]);
 await chainPage.selectOption("#f_toProject", projectValues[3]);
 await chainPage.click("#panelForm button[type=submit]");
 await chainPage.waitForTimeout(250);
-ok("10.9c", (await chainPage.locator("#toast").textContent()).includes("existiert bereits"),
+ok("10.11c", (await chainPage.locator("#toast").textContent()).includes("existiert bereits"),
   "doppelte Verkettung wird verhindert");
 await chainPage.click("#panelClose");
 
@@ -814,7 +877,7 @@ await chainPage.locator("#processLinkList .list-row[data-link-id]").last().click
 await chainPage.waitForTimeout(250);
 await chainPage.click("#panelDeleteBtn");
 await chainPage.waitForTimeout(300);
-ok("10.10", editedBadge.includes("Freigegebene Vergabeunterlagen") &&
+ok("10.12", editedBadge.includes("Freigegebene Vergabeunterlagen") &&
   (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 2,
   "Verkettung bearbeitet und wieder gelöscht");
 
@@ -823,7 +886,7 @@ const otherCard = chainPage.locator(".chain-card").first();
 const otherName = (await otherCard.locator(".chain-card-name").textContent()).trim();
 await otherCard.click();
 await chainPage.waitForTimeout(400);
-ok("10.11", (await chainPage.locator("#projectNameInput").inputValue()) === otherName,
+ok("10.13", (await chainPage.locator("#projectNameInput").inputValue()) === otherName,
   `Wechsel per Landkarte auf „${otherName}“`);
 
 // 10.12 — Projekt löschen entfernt seine Verkettungen
@@ -833,10 +896,10 @@ await chainPage.click("#deleteProjectBtn");
 await chainPage.waitForTimeout(500);
 await chainPage.click('.nav-item[data-section="chain"]');
 await chainPage.waitForTimeout(400);
-ok("10.12", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 1,
+ok("10.14", (await chainPage.locator("#processLinkList .list-row[data-link-id]").count()) === 1,
   "Verkettungen des gelöschten Prozesses sind entfernt");
 
-ok("10.13", chainErrors.length === 0, chainErrors.join(" | ") || "keine JS-Fehler in den neuen Ansichten");
+ok("10.15", chainErrors.length === 0, chainErrors.join(" | ") || "keine JS-Fehler in den neuen Ansichten");
 await chainPage.close();
 
 // --- Auswertung -------------------------------------------------------------

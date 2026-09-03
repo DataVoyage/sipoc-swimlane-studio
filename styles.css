@@ -212,6 +212,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   flex-shrink: 0;
 }
 .version-warning.hidden { display: none; }
+.version-update {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
 
 /* ---------- Menü (Popover) ---------- */
 .menu-anchor { position: relative; display: inline-flex; }
@@ -297,6 +301,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 
 .content { flex: 1; overflow: auto; padding: 28px 34px 60px; min-width: 0; }
 .section { display: none; max-width: 1080px; margin: 0 auto; }
+/* Die SIPOC-Tabelle hat acht Spalten und braucht die volle Breite. */
+.section-wide { max-width: none; }
 .section.active { display: block; }
 
 .section-header {
@@ -478,120 +484,69 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .subsection-title { font-size: 15px; margin: 26px 0 12px; }
 .hidden { display: none !important; }
 
-/* ---------- SIPOC-Übersicht ---------- */
-.sipoc-board { position: relative; }
-.sipoc-grid { position: relative; display: flex; flex-direction: column; gap: 8px; }
-
-.sipoc-header, .sipoc-row {
-  display: grid;
-  grid-template-columns: 34px 1fr 1.25fr 1.5fr 1.25fr 1fr;
-  gap: 10px;
-  align-items: stretch;
-}
-.sipoc-header {
-  position: sticky;
-  top: 0;
-  z-index: 6;               /* über den Ketten-Kurven, sonst schiebt sich beides übereinander */
-  background: var(--bg-content);
-  padding: 10px 0 8px;
-  box-shadow: 0 6px 8px -8px rgba(0, 0, 0, 0.25);
-}
-.sipoc-head {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  padding: 0 12px;
-}
-.sipoc-head span {
-  display: inline-block;
-  color: var(--accent);
-  font-size: 13px;
-}
-
-.sipoc-row {
-  position: relative;
-  z-index: 2;
-  cursor: pointer;
-  border-radius: var(--radius-md);
-  transition: transform 0.12s ease;
-}
-.sipoc-row:hover { transform: translateY(-1px); }
-.sipoc-index {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11.5px; font-weight: 700; color: var(--text-tertiary);
-}
-.sipoc-cell {
+/* ---------- SIPOC-Tabelle ----------
+   Bewusst eine echte Tabelle: Diese Ansicht dient dem Anlegen und Pflegen der
+   Schritte. Wie sie zusammenhängen, zeigen Diagramm und Prozesskette. */
+.table-card {
   background: var(--bg-card);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  padding: 12px 14px;
+  overflow: auto;
+  max-height: calc(100vh - 210px);
+}
+.table-empty { padding: 40px 24px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 12.5px;
   line-height: 1.45;
-  color: var(--text-primary);
-  min-height: 62px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-  overflow-wrap: anywhere;
 }
-.sipoc-side { background: var(--bg-subtle); box-shadow: none; color: var(--text-secondary); }
-.sipoc-cell-empty, .sipoc-empty-text { color: var(--text-tertiary); }
-.sipoc-process {
-  border-left: 3px solid var(--type-color, var(--accent));
-  gap: 8px;
-}
-.sipoc-process-name { font-weight: 650; font-size: 13.5px; line-height: 1.35; }
-.sipoc-process-meta { display: flex; gap: 6px; flex-wrap: wrap; }
-
-.sipoc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.sipoc-chip {
-  border: none;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 10.5px;
-  font-weight: 600;
-  cursor: pointer;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--separator-strong);
   white-space: nowrap;
 }
-.sipoc-chip:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-.sipoc-outmark { font-size: 10.5px; color: var(--text-tertiary); font-weight: 600; }
+.data-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--separator);
+  vertical-align: top;
+  color: var(--text-primary);
+  overflow-wrap: break-word;   /* nur bei Bedarf umbrechen, nicht mitten im Wort */
+  hyphens: auto;
+}
+/* Beschreibungen sollen die Zeilenhöhe nicht sprengen. */
+.col-process .cell-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.data-table tbody tr { cursor: pointer; }
+.data-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--text-primary) 2.5%, transparent); }
+.data-table tbody tr:hover { background: var(--bg-card-hover); }
+.data-table tbody tr:hover td { color: var(--text-primary); }
+.data-table tbody tr:last-child td { border-bottom: none; }
 
-.sipoc-row-linked .sipoc-cell { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
-.sipoc-row-flash .sipoc-cell { animation: sipoc-flash 1.2s ease; }
-@keyframes sipoc-flash {
-  0%, 100% { box-shadow: var(--shadow-card); }
-  30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); }
-}
-
-/* Die Ketten liegen über den Karten, bleiben aber im Ruhezustand unsichtbar:
-   dauerhaft sichtbare Kurven quer über die Tabelle wären zu unruhig. Sie
-   erscheinen beim Überfahren einer Zeile oder über den Schalter „Ketten“. */
-.sipoc-links {
-  position: absolute;
-  top: 0; left: 0;
-  pointer-events: none;
-  z-index: 5;
-  overflow: visible;
-  color: var(--accent);
-}
-.sipoc-link {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  opacity: 0;
-  marker-end: url(#sipocArrow);
-  transition: opacity 0.18s ease, stroke-width 0.18s ease;
-}
-.sipoc-grid-show-links .sipoc-link { opacity: 0.3; }
-.sipoc-link-active { opacity: 0.95 !important; stroke-width: 2.4; }
+.col-num { width: 40px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; font-weight: 600; }
+.col-type { width: 124px; }
+.col-lane { width: 168px; }
+.col-process { width: 19%; min-width: 190px; }
+.cell-strong { font-weight: 650; }
+.cell-note { margin-top: 4px; font-size: 11.5px; color: var(--text-secondary); }
+.cell-empty { color: var(--text-tertiary); }
+.lane-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 
 /* ---------- Prozesskette ---------- */
 .chain-map-wrapper {
